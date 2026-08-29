@@ -46,11 +46,6 @@
                             <input type="text" name="reason" value="{{ old('reason') }}" class="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-purple-500">
                         </div>
 
-                        <div class="flex items-center">
-                            <input type="checkbox" name="is_paid" value="1" {{ old('is_paid', 1) ? 'checked' : '' }} class="rounded border-gray-300 text-purple-600">
-                            <label class="ml-2 text-sm text-gray-700">Dibayar (Gaji tetap dibayar)</label>
-                        </div>
-
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
                             <textarea name="notes" rows="2" class="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-purple-500">{{ old('notes') }}</textarea>

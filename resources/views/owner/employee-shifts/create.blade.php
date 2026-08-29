@@ -9,17 +9,29 @@
                 <form method="POST" action="{{ route('owner.employee-shifts.store') }}">
                     @csrf
 
+                    @if(session('error'))
+                        <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            {{ session('error') }}
+                        </div>
+                    @endif
+
                     <div class="space-y-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Karyawan *</label>
                             <select name="employee_id" required class="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500">
                                 <option value="">Pilih Karyawan</option>
                                 @foreach($employees as $employee)
-                                    <option value="{{ $employee->id }}" {{ old('employee_id') == $employee->id ? 'selected' : '' }}>
-                                        {{ $employee->user->name }} ({{ $employee->employee_code }})
+                                    @php
+                                        $alreadyAssigned = in_array($employee->id, $assignedEmployeeIds ?? []);
+                                    @endphp
+                                    <option value="{{ $employee->id }}"
+                                        {{ old('employee_id') == $employee->id && !$alreadyAssigned ? 'selected' : '' }}
+                                        {{ $alreadyAssigned ? 'disabled' : '' }}>
+                                        {{ $employee->user->name }} ({{ $employee->employee_code }}){{ $alreadyAssigned ? ' - sudah punya shift' : '' }}
                                     </option>
                                 @endforeach
                             </select>
+                            <p class="text-xs text-gray-500 mt-1">Karyawan yang sudah punya penugasan shift aktif tidak bisa dipilih lagi.</p>
                             @error('employee_id') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
                         </div>
 

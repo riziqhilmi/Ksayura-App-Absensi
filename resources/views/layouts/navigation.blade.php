@@ -67,12 +67,18 @@
 
                         @else
                             <!-- Employee Navigation -->
-                            <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
+                            <x-nav-link :href="route('employee.dashboard')" :active="request()->routeIs('employee.dashboard')">
                                 {{ __('Dashboard') }}
                             </x-nav-link>
+                            
+                            <x-nav-link :href="route('employee.calendar.index')" :active="request()->routeIs('employee.calendar.*')">
+                                {{ __('Kalender Kerja') }}
+                            </x-nav-link>
+                            
                             <x-nav-link :href="route('employee.attendance.my')" :active="request()->routeIs('employee.attendance.*')">
                                 {{ __('Absensi Saya') }}
                             </x-nav-link>
+                            
                             <x-nav-link :href="route('employee.salaries.my')" :active="request()->routeIs('employee.salaries.*')">
                                 {{ __('Gaji Saya') }}
                             </x-nav-link>
@@ -215,8 +221,12 @@
 
                 @else
                     <!-- Employee Mobile Navigation -->
-                    <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
+                    <x-responsive-nav-link :href="route('employee.dashboard')" :active="request()->routeIs('employee.dashboard')">
                         {{ __('Dashboard') }}
+                    </x-responsive-nav-link>
+                    
+                    <x-responsive-nav-link :href="route('employee.calendar.index')" :active="request()->routeIs('employee.calendar.*')">
+                        {{ __('Kalender Kerja') }}
                     </x-responsive-nav-link>
                     
                     <x-responsive-nav-link :href="route('employee.attendance.my')" :active="request()->routeIs('employee.attendance.*')">

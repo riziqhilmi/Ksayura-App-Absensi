@@ -22,19 +22,16 @@ class AttendanceController extends Controller
     {
         $query = Attendance::with(['employee.user', 'shift']);
         
-        // Filter by date
         if ($request->filled('date')) {
             $query->whereDate('date', $request->date);
         } else {
             $query->whereDate('date', today());
         }
 
-        // Filter by employee
         if ($request->filled('employee')) {
             $query->where('employee_id', $request->employee);
         }
 
-        // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -42,7 +39,6 @@ class AttendanceController extends Controller
         $attendances = $query->latest('date')->paginate(20);
         $employees = Employee::with('user')->where('status', 'active')->get();
         
-        // Stats
         $stats = [
             'total' => Attendance::whereDate('date', today())->count(),
             'present' => Attendance::whereDate('date', today())->where('status', 'present')->count(),
@@ -50,23 +46,22 @@ class AttendanceController extends Controller
             'absent' => Attendance::whereDate('date', today())->where('status', 'absent')->count(),
             'leave' => Attendance::whereDate('date', today())->where('status', 'leave')->count(),
             'half_day' => Attendance::whereDate('date', today())->where('status', 'half_day')->count(),
+            'auto_checkout' => Attendance::whereDate('date', today())->where('status', 'auto_checkout')->count(),
         ];
 
         return view('owner.attendance.index', compact('attendances', 'employees', 'stats'));
     }
 
-    // Owner: Detail absensi
     public function show(Attendance $attendance)
     {
         $attendance->load(['employee.user', 'shift']);
         return view('owner.attendance.show', compact('attendance'));
     }
 
-    // Owner: Update status absensi (manual)
     public function updateStatus(Request $request, Attendance $attendance)
     {
         $request->validate([
-            'status' => 'required|in:present,absent,late,half_day,leave',
+            'status' => 'required|in:present,absent,late,half_day,leave,auto_checkout',
             'notes' => 'nullable|string'
         ]);
 
@@ -81,7 +76,6 @@ class AttendanceController extends Controller
         ]);
     }
 
-    // Owner: Export data absensi
     public function export(Request $request)
     {
         return redirect()->back()->with('info', 'Fitur export akan segera tersedia');
@@ -89,7 +83,6 @@ class AttendanceController extends Controller
 
     // ==================== EMPLOYEE METHODS ====================
 
-    // Employee: View attendance with shift info
     public function myAttendance(Request $request)
     {
         $employee = Employee::where('user_id', auth()->id())->first();
@@ -98,19 +91,16 @@ class AttendanceController extends Controller
             return redirect()->back()->with('error', 'Data karyawan tidak ditemukan');
         }
 
-        // Get today's attendance
         $todayAttendance = Attendance::where('employee_id', $employee->id)
             ->whereDate('date', today())
             ->first();
 
-        // Get employee's shift for today
         if ($todayAttendance && $todayAttendance->shift_id) {
             $todayShift = Shift::find($todayAttendance->shift_id);
         } else {
             $todayShift = $this->getEmployeeShiftForDate($employee, today());
         }
 
-        // Get attendance history with filters
         $query = Attendance::where('employee_id', $employee->id);
         
         if ($request->filled('month')) {
@@ -127,7 +117,6 @@ class AttendanceController extends Controller
 
         $attendances = $query->latest('date')->paginate(20);
         
-        // Stats for this month
         $stats = [
             'total' => $query->count(),
             'present' => $query->where('status', 'present')->count(),
@@ -135,9 +124,9 @@ class AttendanceController extends Controller
             'absent' => $query->where('status', 'absent')->count(),
             'leave' => $query->where('status', 'leave')->count(),
             'half_day' => $query->where('status', 'half_day')->count(),
+            'auto_checkout' => $query->where('status', 'auto_checkout')->count(),
         ];
 
-        // Get office location for map
         $officeLocation = CompanySetting::getOfficeLocation();
 
         return view('employee.attendance.index', compact(
@@ -149,7 +138,6 @@ class AttendanceController extends Controller
         ));
     }
 
-    // Employee: Check In with shift validation
     public function checkIn(Request $request)
     {
         $employee = Employee::where('user_id', auth()->id())->first();
@@ -158,7 +146,6 @@ class AttendanceController extends Controller
             return response()->json(['error' => 'Data karyawan tidak ditemukan'], 404);
         }
 
-        // Check if already checked in today
         $existing = Attendance::where('employee_id', $employee->id)
                               ->whereDate('date', today())
                               ->first();
@@ -167,32 +154,64 @@ class AttendanceController extends Controller
             return response()->json(['error' => 'Anda sudah melakukan check in hari ini'], 400);
         }
 
+        // Cek apakah hari ini libur
         $holiday = $this->getEmployeeHolidayForDate($employee, today());
         if ($holiday) {
             return response()->json([
                 'error' => 'Anda tidak dapat melakukan check in karena hari ini adalah jadwal libur Anda',
+                'is_holiday' => true,
                 'holiday' => [
                     'reason' => $holiday->reason,
                     'type' => $holiday->getTypeLabel(),
-                    'status' => $holiday->getStatusLabel(),
                 ],
             ], 400);
         }
 
-        // Get employee's assigned shift for today
+        // Get shift untuk hari ini
         $shift = $this->getEmployeeShiftForDate($employee, today());
-        $checkInTime = Carbon::now();
-        $checkInWindow = $this->getCheckInWindow($checkInTime, $shift);
+        $now = Carbon::now();
 
-        if (!$checkInWindow['can_check_in']) {
+        if (!$shift) {
             return response()->json([
-                'error' => 'Anda masih belum bisa absen',
-                'available_from' => $checkInWindow['available_from'],
-                'shift_start_time' => $checkInWindow['shift_start_time'],
+                'error' => 'Anda belum diberi shift. Silakan hubungi owner/admin.',
+                'status' => 'no_shift',
+                'can_check_in' => false,
+            ], 400);
+        }
+        
+        // Cek apakah masih dalam jam shift (maksimal 2 jam setelah shift berakhir)
+        $shiftEnd = $this->getShiftEndDateTime($now, $shift);
+        $maxCheckInTime = $shiftEnd->copy()->addHours(2);
+        
+        if ($now->greaterThan($maxCheckInTime)) {
+            // Tandai sebagai tidak hadir
+            Attendance::create([
+                'employee_id' => $employee->id,
+                'shift_id' => $shift->id,
+                'date' => today(),
+                'status' => 'absent',
+                'notes' => 'Tidak hadir (melewati batas waktu check in)',
+            ]);
+            
+            return response()->json([
+                'error' => 'Anda sudah melewati batas waktu check in',
+                'status' => 'absent',
+                'max_check_in_time' => $maxCheckInTime->format('H:i'),
             ], 400);
         }
 
-        // Validate location
+        // Cek window check in (minimal 2 jam sebelum shift)
+        $checkInWindow = $this->getCheckInWindow($now, $shift);
+        if (!$checkInWindow['can_check_in']) {
+            return response()->json([
+                'error' => 'Anda masih belum bisa check in',
+                'available_from' => $checkInWindow['available_from'],
+                'shift_start_time' => $checkInWindow['shift_start_time'],
+                'can_check_in' => false,
+            ], 400);
+        }
+
+        // Validasi lokasi
         $validator = Validator::make($request->all(), [
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
@@ -202,7 +221,6 @@ class AttendanceController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Validate office location
         $isWithinRadius = CompanySetting::isWithinOfficeRadius(
             $request->latitude,
             $request->longitude
@@ -224,18 +242,19 @@ class AttendanceController extends Controller
             ], 400);
         }
 
-        $status = $this->determineAttendanceStatus($checkInTime, $shift);
-        $lateMinutes = $this->getLateMinutes($checkInTime, $shift);
+        $status = $this->determineAttendanceStatus($now, $shift);
+        $lateMinutes = $this->getLateMinutes($now, $shift);
 
         $attendance = Attendance::create([
             'employee_id' => $employee->id,
             'shift_id' => $shift ? $shift->id : null,
             'date' => today(),
-            'check_in_time' => $checkInTime,
+            'check_in_time' => $now,
             'latitude_in' => $request->latitude,
             'longitude_in' => $request->longitude,
             'check_in_location' => $request->location_name ?? 'Check In',
             'status' => $status,
+            'is_auto_checkout' => false,
         ]);
 
         return response()->json([
@@ -248,7 +267,6 @@ class AttendanceController extends Controller
         ]);
     }
 
-    // Employee: Check Out
     public function checkOut(Request $request)
     {
         $employee = Employee::where('user_id', auth()->id())->first();
@@ -269,7 +287,7 @@ class AttendanceController extends Controller
             return response()->json(['error' => 'Anda sudah melakukan check out hari ini'], 400);
         }
 
-        // Validate location for check out
+        // Validasi lokasi
         $validator = Validator::make($request->all(), [
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
@@ -279,7 +297,6 @@ class AttendanceController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Validate office location
         $isWithinRadius = CompanySetting::isWithinOfficeRadius(
             $request->latitude,
             $request->longitude
@@ -301,18 +318,16 @@ class AttendanceController extends Controller
             ], 400);
         }
 
-        // Calculate work duration
         $checkInTime = Carbon::parse($attendance->check_in_time);
         $checkOutTime = Carbon::now();
         $workDuration = $checkInTime->diffInMinutes($checkOutTime);
         
-        // Determine if it's half day (less than 4 hours)
         if ($workDuration < 240 && $attendance->status != 'leave') {
             $attendance->status = 'half_day';
         }
 
         $attendance->update([
-            'check_out_time' => now(),
+            'check_out_time' => $checkOutTime,
             'latitude_out' => $request->latitude,
             'longitude_out' => $request->longitude,
             'check_out_location' => $request->location_name ?? 'Check Out',
@@ -328,7 +343,6 @@ class AttendanceController extends Controller
         ]);
     }
 
-    // Employee: Get today's attendance status (for AJAX)
     public function getTodayStatus()
     {
         $employee = Employee::where('user_id', auth()->id())->first();
@@ -344,11 +358,37 @@ class AttendanceController extends Controller
         $shift = $attendance && $attendance->shift_id
             ? Shift::find($attendance->shift_id)
             : $this->getEmployeeShiftForDate($employee, today());
+        
         $officeLocation = CompanySetting::getOfficeLocation();
         $holiday = $this->getEmployeeHolidayForDate($employee, today());
-        $checkInWindow = $this->getCheckInWindow(Carbon::now(), $shift);
+        $now = Carbon::now();
+        $checkInWindow = $this->getCheckInWindow($now, $shift);
+        
+        // Cek apakah sudah melewati batas waktu check in (2 jam setelah shift berakhir)
+        $isPastCheckInTime = false;
+        $maxCheckInTime = null;
+        $shiftEndTime = null;
+        
+        if ($shift && !$attendance) {
+            $shiftEnd = $this->getShiftEndDateTime($now, $shift);
+            $maxCheckInTime = $shiftEnd->copy()->addHours(2);
+            $isPastCheckInTime = $now->greaterThan($maxCheckInTime);
+            $shiftEndTime = $shiftEnd->format('H:i');
+        }
 
         if (!$attendance) {
+            if (!$shift) {
+                return response()->json([
+                    'checked_in' => false,
+                    'checked_out' => false,
+                    'status' => 'no_shift',
+                    'can_check_in' => false,
+                    'message' => 'Anda belum diberi shift. Silakan hubungi owner/admin.',
+                    'shift' => null,
+                    'office_location' => $officeLocation
+                ]);
+            }
+
             if ($holiday) {
                 return response()->json([
                     'checked_in' => false,
@@ -358,8 +398,26 @@ class AttendanceController extends Controller
                     'holiday' => [
                         'reason' => $holiday->reason,
                         'type' => $holiday->getTypeLabel(),
-                        'status' => $holiday->getStatusLabel(),
                     ],
+                    'shift' => $shift ? [
+                        'name' => $shift->name,
+                        'start_time' => date('H:i', strtotime($shift->start_time)),
+                        'end_time' => date('H:i', strtotime($shift->end_time)),
+                        'grace_period' => $shift->grace_period
+                    ] : null,
+                    'office_location' => $officeLocation
+                ]);
+            }
+
+            if ($isPastCheckInTime) {
+                return response()->json([
+                    'checked_in' => false,
+                    'checked_out' => false,
+                    'status' => 'past_check_in',
+                    'can_check_in' => false,
+                    'is_past_check_in' => true,
+                    'max_check_in_time' => $maxCheckInTime->format('H:i'),
+                    'shift_end_time' => $shiftEndTime,
                     'shift' => $shift ? [
                         'name' => $shift->name,
                         'start_time' => date('H:i', strtotime($shift->start_time)),
@@ -394,6 +452,7 @@ class AttendanceController extends Controller
             'check_out_time' => $attendance->check_out_time ? date('H:i', strtotime($attendance->check_out_time)) : null,
             'status' => $attendance->status,
             'attendance_id' => $attendance->id,
+            'is_auto_checkout' => $attendance->is_auto_checkout ?? false,
             'late_minutes' => $attendance->check_in_time
                 ? $this->getLateMinutes(Carbon::parse($attendance->check_in_time), $shift)
                 : 0,
@@ -406,7 +465,6 @@ class AttendanceController extends Controller
             'office_location' => $officeLocation
         ];
 
-        // Calculate work duration if checked out
         if ($attendance->check_in_time && $attendance->check_out_time) {
             $checkIn = Carbon::parse($attendance->check_in_time);
             $checkOut = Carbon::parse($attendance->check_out_time);
@@ -417,7 +475,60 @@ class AttendanceController extends Controller
         return response()->json($response);
     }
 
-    // Helper: Format duration in minutes to readable format
+    // ==================== AUTO CHECK OUT ====================
+
+    // Auto Check Out untuk karyawan yang lupa
+    public function autoCheckOut()
+    {
+        $today = today();
+        $now = Carbon::now();
+        
+        // Get all attendances that are checked in but not checked out
+        $attendances = Attendance::whereDate('date', $today)
+            ->whereNotNull('check_in_time')
+            ->whereNull('check_out_time')
+            ->where('status', '!=', 'leave')
+            ->get();
+
+        $count = 0;
+
+        foreach ($attendances as $attendance) {
+            $shift = $attendance->shift;
+            if (!$shift) continue;
+
+            $shiftEnd = $this->getShiftEndDateTime($now, $shift);
+            $autoCheckOutTime = $shiftEnd->copy()->addMinutes(15);
+
+            // Jika sekarang sudah melewati 15 menit setelah shift berakhir
+            if ($now->greaterThanOrEqualTo($autoCheckOutTime)) {
+                $checkInTime = Carbon::parse($attendance->check_in_time);
+                $workDuration = $checkInTime->diffInMinutes($now);
+                
+                $status = 'auto_checkout';
+                if ($workDuration < 240) {
+                    $status = 'half_day';
+                }
+
+                $attendance->update([
+                    'check_out_time' => $now,
+                    'status' => $status,
+                    'is_auto_checkout' => true,
+                    'notes' => 'Auto check out - Karyawan lupa check out',
+                ]);
+                
+                $count++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Auto check out berhasil dilakukan untuk ' . $count . ' karyawan',
+            'count' => $count
+        ]);
+    }
+
+    // ==================== HELPER METHODS ====================
+
     private function formatDuration($minutes)
     {
         $hours = floor($minutes / 60);
@@ -425,7 +536,6 @@ class AttendanceController extends Controller
         return $hours . ' jam ' . $mins . ' menit';
     }
 
-    // Helper: Get employee's assigned shift for a specific date
     private function getEmployeeShiftForDate(Employee $employee, $date)
     {
         $date = Carbon::parse($date);
@@ -454,10 +564,9 @@ class AttendanceController extends Controller
             ->latest()
             ->first();
 
-        return $employeeShift?->shift ?? Shift::where('status', 'active')->first();
+        return $employeeShift?->shift;
     }
 
-    // Helper: Get employee holiday for a specific date
     private function getEmployeeHolidayForDate(Employee $employee, $date)
     {
         return EmployeeHoliday::where('employee_id', $employee->id)
@@ -466,12 +575,11 @@ class AttendanceController extends Controller
             ->first();
     }
 
-    // Helper: Determine whether check in has entered the allowed time window
     private function getCheckInWindow(Carbon $now, $shift)
     {
         if (!$shift) {
             return [
-                'can_check_in' => true,
+                'can_check_in' => false,
                 'available_from' => null,
                 'shift_start_time' => null,
             ];
@@ -487,7 +595,6 @@ class AttendanceController extends Controller
         ];
     }
 
-    // Helper: Calculate late minutes after the allowed grace period
     private function getLateMinutes(Carbon $checkInTime, $shift)
     {
         if (!$shift) {
@@ -502,13 +609,16 @@ class AttendanceController extends Controller
             : 0;
     }
 
-    // Helper: Build today's shift start datetime from a shift time field
     private function getShiftStartDateTime(Carbon $date, $shift)
     {
         return $date->copy()->setTimeFromTimeString(date('H:i:s', strtotime($shift->start_time)));
     }
 
-    // Helper: Determine attendance status
+    private function getShiftEndDateTime(Carbon $date, $shift)
+    {
+        return $date->copy()->setTimeFromTimeString(date('H:i:s', strtotime($shift->end_time)));
+    }
+
     private function determineAttendanceStatus($checkInTime, $shift)
     {
         if (!$shift) {

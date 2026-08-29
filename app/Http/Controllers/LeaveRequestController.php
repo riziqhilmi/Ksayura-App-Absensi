@@ -236,7 +236,7 @@ class LeaveRequestController extends Controller
             'leave_type' => 'required|string|max:50|in:annual,sick,personal,maternity,other',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'required|date|after_or_equal:start_date',
-            'reason' => 'required|string|min:10|max:500',
+            'reason' => 'required|string|max:500',
         ]);
 
         if ($validator->fails()) {

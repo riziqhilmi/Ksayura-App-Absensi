@@ -1,15 +1,13 @@
 <x-guest-layout>
     <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gradient-to-br from-blue-50 via-white to-emerald-50">
-        <div class="w-full sm:max-w-md mt-6 px-6 py-8 bg-white shadow-2xl overflow-hidden sm:rounded-2xl border border-gray-100">
+        <div class="w-full sm:max-w-md mt-6 px-8 py-10 bg-white shadow-2xl overflow-hidden sm:rounded-2xl border border-gray-100">
             <!-- Logo dan Header -->
             <div class="text-center mb-8">
-                <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-500 shadow-lg mb-4">
-                    <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                    </svg>
+                <div class="inline-flex items-center justify-center mb-4">
+                    <img src="{{ asset('images/logo3.png') }}" alt="Kantor Sayur" class="h-20 w-auto">
                 </div>
-                <h1 class="text-3xl font-bold text-gray-800">Kantor Sayur</h1>
-                <p class="text-sm text-gray-500 mt-1">Sistem Absensi UMKM</p>
+                <h1 class="text-2xl font-bold text-gray-800">KSayura</h1>
+                <p class="text-sm text-gray-500 mt-1">Sistem Absensi Kantor Sayur</p>
             </div>
 
             <!-- Session Status -->
@@ -63,15 +61,6 @@
                     <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-emerald-500 hover:from-blue-700 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-200 transform hover:scale-[1.02]">
                         {{ __('Masuk') }}
                     </button>
-                </div>
-
-                <div class="text-center">
-                    <p class="text-sm text-gray-600">
-                        Belum punya akun?
-                        <a href="{{ route('register') }}" class="font-medium text-blue-600 hover:text-blue-800 transition duration-200">
-                            Daftar Sekarang
-                        </a>
-                    </p>
                 </div>
             </form>
         </div>

@@ -5,6 +5,7 @@ use App\Http\Controllers\CompanySettingController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeDashboardController;
 use App\Http\Controllers\EmployeeHolidayController;
+use App\Http\Controllers\EmployeeCalendarController;
 use App\Http\Controllers\EmployeeShiftController;
 use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\LeaveRequestController;
@@ -49,6 +50,7 @@ Route::middleware(['auth', 'verified'])->prefix('owner')->name('owner.')->group(
     
     // Employee Management
     Route::resource('employees', EmployeeController::class);
+    Route::get('/employees/{employee}/calendar', [EmployeeCalendarController::class, 'ownerShow'])->name('employees.calendar');
     Route::patch('/employees/{employee}/status', [EmployeeController::class, 'updateStatus'])->name('employees.update-status');
     Route::post('/employees/{employee}/reset-password', [EmployeeController::class, 'resetPassword'])->name('employees.reset-password');
 
@@ -114,6 +116,10 @@ Route::middleware(['auth', 'verified'])->prefix('employee')->name('employee.')->
     Route::post('/attendance/check-out', [AttendanceController::class, 'checkOut'])->name('attendance.check-out');
     Route::get('/attendance/today-status', [AttendanceController::class, 'getTodayStatus'])->name('attendance.today-status');
 
+
+    // Calendar
+    Route::get('/calendar', [EmployeeCalendarController::class, 'index'])->name('calendar.index');
+    Route::get('/calendar/data', [EmployeeCalendarController::class, 'getData'])->name('calendar.data');
     // Salary
     Route::get('/salaries', [SalaryController::class, 'mySalaries'])->name('salaries.my');
     Route::get('/salaries/{salary}', [SalaryController::class, 'myShow'])->name('salaries.show');

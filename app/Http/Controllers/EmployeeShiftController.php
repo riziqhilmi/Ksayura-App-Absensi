@@ -41,7 +41,11 @@ class EmployeeShiftController extends Controller
     {
         $employees = Employee::with('user')->where('status', 'active')->get();
         $shifts = Shift::where('status', 'active')->get();
-        return view('owner.employee-shifts.create', compact('employees', 'shifts'));
+        $assignedEmployeeIds = EmployeeShift::where('status', 'active')
+            ->pluck('employee_id')
+            ->all();
+
+        return view('owner.employee-shifts.create', compact('employees', 'shifts', 'assignedEmployeeIds'));
     }
 
     // Simpan shift karyawan
@@ -61,17 +65,16 @@ class EmployeeShiftController extends Controller
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        // Cek apakah karyawan sudah punya shift ini
-        $existing = EmployeeShift::where('employee_id', $request->employee_id)
-            ->where('shift_id', $request->shift_id)
+        // Cek apakah karyawan sudah punya penugasan shift aktif
+        $existing = EmployeeShift::with('shift')
+            ->where('employee_id', $request->employee_id)
             ->where('status', 'active')
-            ->when($request->day_of_week, function($query) use ($request) {
-                return $query->where('day_of_week', $request->day_of_week);
-            })
             ->first();
 
         if ($existing) {
-            return redirect()->back()->with('error', 'Karyawan sudah memiliki shift ini.')->withInput();
+            return redirect()->back()
+                ->with('error', 'Karyawan sudah memiliki penugasan shift aktif: ' . ($existing->shift->name ?? 'Shift'))
+                ->withInput();
         }
 
         EmployeeShift::create([
@@ -113,6 +116,20 @@ class EmployeeShiftController extends Controller
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        if ($request->status === 'active') {
+            $existing = EmployeeShift::with('shift')
+                ->where('employee_id', $request->employee_id)
+                ->where('status', 'active')
+                ->whereKeyNot($employeeShift->id)
+                ->first();
+
+            if ($existing) {
+                return redirect()->back()
+                    ->with('error', 'Karyawan sudah memiliki penugasan shift aktif: ' . ($existing->shift->name ?? 'Shift'))
+                    ->withInput();
+            }
         }
 
         $employeeShift->update([

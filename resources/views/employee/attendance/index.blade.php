@@ -44,18 +44,18 @@
                     </div>
 
                     <!-- Shift Info -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                         <div class="bg-gray-50 rounded-xl p-4">
                             <p class="text-xs text-gray-500">Shift</p>
                             <p class="font-semibold text-gray-800" id="shift-name">
-                                {{ $todayShift ? $todayShift->name : 'Belum diatur' }}
+                                {{ $todayShift ? $todayShift->name : 'Anda belum diberi shift' }}
                             </p>
                             <p class="text-sm text-gray-500" id="shift-time">
                                 @if($todayShift)
                                     {{ date('H:i', strtotime($todayShift->start_time)) }} - {{ date('H:i', strtotime($todayShift->end_time)) }}
                                     <span class="text-xs text-yellow-600 ml-2">(Toleransi {{ $todayShift->grace_period }} menit)</span>
                                 @else
-                                    -
+                                    Silakan hubungi owner/admin
                                 @endif
                             </p>
                         </div>
@@ -66,11 +66,22 @@
                                     <div class="h-6 w-24 bg-gray-200 rounded"></div>
                                 </div>
                             </div>
+                            <div id="attendance-detail-info" class="mt-1 text-xs text-gray-500"></div>
                         </div>
                         <div class="bg-gray-50 rounded-xl p-4">
                             <p class="text-xs text-gray-500">Durasi Kerja</p>
                             <p class="font-semibold text-gray-800" id="work-duration">-</p>
                             <p class="text-sm text-gray-500" id="work-time">-</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <p class="text-xs text-gray-500">Keterlambatan</p>
+                            <p class="font-semibold text-gray-800" id="late-display">-</p>
+                            <p class="text-sm text-gray-500" id="late-time">-</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <p class="text-xs text-gray-500">Jam Masuk</p>
+                            <p class="font-semibold text-gray-800" id="checkin-window">-</p>
+                            <p class="text-sm text-gray-500" id="checkin-window-time">-</p>
                         </div>
                     </div>
 
@@ -114,7 +125,7 @@
             </div>
 
             <!-- Stats -->
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
                 <div class="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
                     <p class="text-xs text-gray-500">Total</p>
                     <p class="text-2xl font-bold text-gray-800">{{ $stats['total'] }}</p>
@@ -145,6 +156,13 @@
                     <p class="text-2xl font-bold text-purple-600">{{ $stats['leave'] + $stats['half_day'] }}</p>
                     <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
                         <div class="bg-purple-500 h-1.5 rounded-full" style="width: {{ $stats['total'] > 0 ? (($stats['leave'] + $stats['half_day']) / $stats['total']) * 100 : 0 }}%"></div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
+                    <p class="text-xs text-gray-500">Auto CO</p>
+                    <p class="text-2xl font-bold text-orange-600">{{ $stats['auto_checkout'] ?? 0 }}</p>
+                    <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                        <div class="bg-orange-500 h-1.5 rounded-full" style="width: {{ $stats['total'] > 0 ? (($stats['auto_checkout'] ?? 0) / $stats['total']) * 100 : 0 }}%"></div>
                     </div>
                 </div>
             </div>
@@ -181,23 +199,36 @@
                     <table class="w-full">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shift</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check In</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check Out</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durasi</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lokasi</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shift</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check In</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check Out</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durasi</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Keterlambatan</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             @forelse($attendances as $attendance)
+                                @php
+                                    $lateMinutes = 0;
+                                    if ($attendance->check_in_time && $attendance->shift) {
+                                        $checkIn = Carbon\Carbon::parse($attendance->check_in_time);
+                                        $shiftStart = Carbon\Carbon::parse($attendance->shift->start_time);
+                                        $shiftStart->setDate($checkIn->year, $checkIn->month, $checkIn->day);
+                                        $gracePeriod = $attendance->shift->grace_period ?? 15;
+                                        $lateThreshold = $shiftStart->copy()->addMinutes($gracePeriod);
+                                        if ($checkIn->greaterThan($lateThreshold)) {
+                                            $lateMinutes = $lateThreshold->diffInMinutes($checkIn);
+                                        }
+                                    }
+                                @endphp
                                 <tr class="hover:bg-gray-50 transition duration-150">
-                                    <td class="px-6 py-4 text-sm text-gray-600">{{ date('d/m/Y', strtotime($attendance->date)) }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">
+                                    <td class="px-4 py-3 text-sm text-gray-600">{{ date('d/m/Y', strtotime($attendance->date)) }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">
                                         {{ $attendance->shift ? $attendance->shift->name : '-' }}
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-4 py-3">
                                         @if($attendance->check_in_time)
                                             <span class="text-sm font-medium text-gray-800">{{ date('H:i', strtotime($attendance->check_in_time)) }}</span>
                                             @if($attendance->latitude_in && $attendance->longitude_in)
@@ -211,9 +242,12 @@
                                             <span class="text-sm text-gray-400">-</span>
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-4 py-3">
                                         @if($attendance->check_out_time)
                                             <span class="text-sm font-medium text-gray-800">{{ date('H:i', strtotime($attendance->check_out_time)) }}</span>
+                                            @if($attendance->is_auto_checkout)
+                                                <span class="ml-1 text-xs text-orange-500">🤖</span>
+                                            @endif
                                             @if($attendance->latitude_out && $attendance->longitude_out)
                                                 <br>
                                                 <button onclick="showLocation({{ $attendance->latitude_out }}, {{ $attendance->longitude_out }})" 
@@ -225,7 +259,7 @@
                                             <span class="text-sm text-gray-400">-</span>
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">
+                                    <td class="px-4 py-3 text-sm text-gray-600">
                                         @if($attendance->check_in_time && $attendance->check_out_time)
                                             @php
                                                 $diff = Carbon\Carbon::parse($attendance->check_in_time)->diffInMinutes(Carbon\Carbon::parse($attendance->check_out_time));
@@ -237,44 +271,47 @@
                                             -
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4">
-                                        @if($attendance->check_in_time && $attendance->check_out_time)
-                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs 
-                                                @if($attendance->latitude_in && $attendance->longitude_in && $attendance->latitude_out && $attendance->longitude_out)
-                                                    bg-green-100 text-green-700
-                                                @else
-                                                    bg-yellow-100 text-yellow-700
-                                                @endif">
-                                                @if($attendance->latitude_in && $attendance->longitude_in && $attendance->latitude_out && $attendance->longitude_out)
-                                                    ✅ Valid
-                                                @else
-                                                    ⚠️ Tidak Lengkap
-                                                @endif
-                                            </span>
+                                    <td class="px-4 py-3">
+                                        @if($attendance->status == 'late' && $lateMinutes > 0)
+                                            <span class="text-sm font-medium text-yellow-600">{{ $lateMinutes }} menit</span>
+                                        @elseif($attendance->status == 'late')
+                                            <span class="text-sm text-yellow-600">Terlambat</span>
+                                        @elseif($attendance->status == 'present')
+                                            <span class="text-sm text-emerald-600">Tepat waktu</span>
                                         @else
                                             <span class="text-sm text-gray-400">-</span>
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4">
-                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
                                             @if($attendance->status == 'present') bg-emerald-100 text-emerald-800
                                             @elseif($attendance->status == 'late') bg-yellow-100 text-yellow-800
                                             @elseif($attendance->status == 'half_day') bg-blue-100 text-blue-800
                                             @elseif($attendance->status == 'leave') bg-purple-100 text-purple-800
+                                            @elseif($attendance->status == 'auto_checkout') bg-orange-100 text-orange-800
                                             @else bg-red-100 text-red-800 @endif">
                                             @if($attendance->status == 'present')
-                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span>
                                             @elseif($attendance->status == 'late')
-                                                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1.5"></span>
+                                                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1"></span>
                                             @elseif($attendance->status == 'half_day')
-                                                <span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5"></span>
+                                                <span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1"></span>
                                             @elseif($attendance->status == 'leave')
-                                                <span class="w-1.5 h-1.5 rounded-full bg-purple-500 mr-1.5"></span>
+                                                <span class="w-1.5 h-1.5 rounded-full bg-purple-500 mr-1"></span>
+                                            @elseif($attendance->status == 'auto_checkout')
+                                                <span class="w-1.5 h-1.5 rounded-full bg-orange-500 mr-1"></span>
+                                                🤖
                                             @else
-                                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>
+                                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-1"></span>
                                             @endif
                                             {{ ucfirst(str_replace('_', ' ', $attendance->status)) }}
                                         </span>
+                                        @if($attendance->is_auto_checkout)
+                                            <span class="text-xs text-orange-500 block mt-0.5">Auto Check Out</span>
+                                        @endif
+                                        @if($attendance->status == 'late' && $lateMinutes > 0)
+                                            <span class="text-xs text-yellow-500 block mt-0.5">+{{ $lateMinutes }} menit</span>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
@@ -342,7 +379,6 @@
             enableBtn.classList.add('hidden');
 
             navigator.geolocation.getCurrentPosition(
-                // Success
                 function(position) {
                     locationPermissionGranted = true;
                     lastLocation = {
@@ -353,21 +389,12 @@
                     statusText.textContent = '✅ Lokasi aktif';
                     detailText.textContent = `Latitude: ${position.coords.latitude.toFixed(6)}, Longitude: ${position.coords.longitude.toFixed(6)}`;
                     icon.className = 'w-10 h-10 rounded-full bg-green-100 flex items-center justify-center';
-                    
-                    // Update banner color
                     banner.className = 'mb-6 p-4 rounded-xl bg-green-50 border border-green-200';
                     
-                    // Enable buttons when attendance status allows it
-                    document.getElementById('checkin-btn').disabled = todayStatus?.status === 'holiday' || todayStatus?.can_check_in === false;
-                    document.getElementById('checkout-btn').disabled = todayStatus?.status === 'holiday';
-                    
-                    // Check if within office radius
                     checkLocationProximity(position.coords.latitude, position.coords.longitude);
                 },
-                // Error
                 function(error) {
                     console.error('Location error:', error);
-                    
                     let errorMessage = '';
                     let suggestion = '';
                     
@@ -395,7 +422,6 @@
                     icon.className = 'w-10 h-10 rounded-full bg-red-100 flex items-center justify-center';
                     banner.className = 'mb-6 p-4 rounded-xl bg-red-50 border border-red-200';
                     
-                    // Disable buttons
                     document.getElementById('checkin-btn').disabled = true;
                     document.getElementById('checkout-btn').disabled = true;
                 },
@@ -475,10 +501,15 @@
         // Check today's status
         function checkTodayStatus() {
             const statusDisplay = document.getElementById('attendance-status-display');
+            const detailInfo = document.getElementById('attendance-detail-info');
             const checkinBtn = document.getElementById('checkin-btn');
             const checkoutBtn = document.getElementById('checkout-btn');
             const workDuration = document.getElementById('work-duration');
             const workTime = document.getElementById('work-time');
+            const lateDisplay = document.getElementById('late-display');
+            const lateTime = document.getElementById('late-time');
+            const checkinWindow = document.getElementById('checkin-window');
+            const checkinWindowTime = document.getElementById('checkin-window-time');
             const infoDiv = document.getElementById('attendance-info');
 
             if (!statusDisplay) return;
@@ -496,122 +527,288 @@
                         if (shiftTimeEl) shiftTimeEl.textContent = 
                             data.shift.start_time + ' - ' + data.shift.end_time + 
                             ' (Toleransi ' + data.shift.grace_period + ' menit)';
+                    } else if (data.status === 'no_shift') {
+                        const shiftNameEl = document.getElementById('shift-name');
+                        const shiftTimeEl = document.getElementById('shift-time');
+                        if (shiftNameEl) {
+                            shiftNameEl.textContent = 'Anda belum diberi shift';
+                            shiftNameEl.className = 'font-semibold text-red-600';
+                        }
+                        if (shiftTimeEl) {
+                            shiftTimeEl.textContent = 'Silakan hubungi owner/admin';
+                            shiftTimeEl.className = 'text-sm text-red-500';
+                        }
                     }
 
-                    if (data.status === 'holiday') {
-                        if (statusDisplay) {
-                            statusDisplay.innerHTML = `
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-700">
-                                    <span class="w-2 h-2 rounded-full bg-purple-500 mr-2"></span>
-                                    Libur
-                                </span>
-                            `;
+                    // Update jam masuk info
+                    if (data.can_check_in !== undefined) {
+                        if (data.can_check_in === false && data.available_from) {
+                            checkinWindow.textContent = 'Belum Dibuka';
+                            checkinWindow.className = 'font-semibold text-yellow-600';
+                            checkinWindowTime.textContent = 'Mulai check in ' + data.available_from;
+                        } else if (data.can_check_in === true) {
+                            checkinWindow.textContent = 'Sudah Dibuka';
+                            checkinWindow.className = 'font-semibold text-emerald-600';
+                            checkinWindowTime.textContent = data.shift_start_time
+                                ? 'Shift mulai ' + data.shift_start_time
+                                : 'Akses check in sudah dibuka';
+                        } else {
+                            checkinWindow.textContent = '-';
+                            checkinWindow.className = 'font-semibold text-gray-800';
+                            checkinWindowTime.textContent = '-';
                         }
-                        if (workDuration) workDuration.textContent = '-';
-                        if (workTime) workTime.textContent = data.holiday?.type || 'Hari libur';
-                        if (infoDiv) {
-                            infoDiv.textContent = data.holiday?.reason
-                                ? 'Hari ini libur: ' + data.holiday.reason
-                                : 'Hari ini adalah jadwal libur Anda';
-                            infoDiv.className = 'flex items-center text-sm text-purple-600 font-medium';
+                    }
+
+                    // === NO SHIFT ===
+                    if (data.status === 'no_shift') {
+                        statusDisplay.innerHTML = `
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
+                                <span class="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
+                                Tidak Bisa Absen
+                            </span>
+                        `;
+                        if (detailInfo) {
+                            detailInfo.textContent = data.message || 'Anda belum diberi shift';
+                            detailInfo.className = 'mt-1 text-xs text-red-600';
                         }
-                        if (checkinBtn) checkinBtn.disabled = true;
-                        if (checkoutBtn) checkoutBtn.disabled = true;
+                        workDuration.textContent = '-';
+                        workTime.textContent = 'Tidak ada shift';
+                        lateDisplay.textContent = '-';
+                        lateTime.textContent = '-';
+                        checkinWindow.textContent = '-';
+                        checkinWindowTime.textContent = 'Jam masuk belum tersedia';
+                        infoDiv.textContent = data.message || 'Anda belum diberi shift. Silakan hubungi owner/admin.';
+                        infoDiv.className = 'flex items-center text-sm text-red-600 font-medium';
+                        checkinBtn.disabled = true;
+                        checkoutBtn.disabled = true;
+
+                    // === HOLIDAY ===
+                    } else if (data.status === 'holiday') {
+                        statusDisplay.innerHTML = `
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-700">
+                                <span class="w-2 h-2 rounded-full bg-purple-500 mr-2"></span>
+                                Libur
+                            </span>
+                        `;
+                        if (detailInfo) {
+                            detailInfo.textContent = data.holiday?.reason || 'Hari libur';
+                            detailInfo.className = 'mt-1 text-xs text-purple-600';
+                        }
+                        workDuration.textContent = '-';
+                        workTime.textContent = data.holiday?.type || 'Hari libur';
+                        lateDisplay.textContent = '-';
+                        lateTime.textContent = '-';
+                        infoDiv.textContent = 'Hari ini adalah jadwal libur Anda';
+                        infoDiv.className = 'flex items-center text-sm text-purple-600 font-medium';
+                        checkinBtn.disabled = true;
+                        checkoutBtn.disabled = true;
+                    
+                    // === PAST CHECK IN (Melewati batas waktu) ===
+                    } else if (data.status === 'past_check_in') {
+                        statusDisplay.innerHTML = `
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
+                                <span class="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
+                                Tidak Hadir
+                            </span>
+                        `;
+                        if (detailInfo) {
+                            detailInfo.textContent = 'Batas check in: ' + data.max_check_in_time;
+                            detailInfo.className = 'mt-1 text-xs text-red-600';
+                        }
+                        workDuration.textContent = '-';
+                        workTime.textContent = 'Melewati batas waktu';
+                        lateDisplay.textContent = '-';
+                        lateTime.textContent = '-';
+                        infoDiv.textContent = 'Anda sudah melewati batas waktu check in (maksimal 2 jam setelah shift berakhir)';
+                        infoDiv.className = 'flex items-center text-sm text-red-600 font-medium';
+                        checkinBtn.disabled = true;
+                        checkoutBtn.disabled = true;
+                    
+                    // === NOT STARTED ===
                     } else if (data.status === 'not_started') {
-                        if (statusDisplay) {
-                            statusDisplay.innerHTML = `
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
-                                    <span class="w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
-                                    Belum Absen
-                                </span>
-                            `;
+                        statusDisplay.innerHTML = `
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
+                                <span class="w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                Belum Absen
+                            </span>
+                        `;
+                        if (detailInfo) {
+                            if (data.can_check_in === false) {
+                                detailInfo.textContent = 'Check in mulai pukul ' + data.available_from;
+                                detailInfo.className = 'mt-1 text-xs text-yellow-600';
+                            } else {
+                                detailInfo.textContent = 'Keadaan sekarang: belum check in';
+                                detailInfo.className = 'mt-1 text-xs text-gray-500';
+                            }
                         }
-                        if (workDuration) workDuration.textContent = '-';
-                        if (workTime) workTime.textContent = 'Belum mulai';
+                        workDuration.textContent = '-';
+                        workTime.textContent = 'Belum mulai';
+                        lateDisplay.textContent = '-';
+                        lateTime.textContent = '-';
                         if (infoDiv && !infoDiv.textContent.includes('Jarak')) {
                             if (data.can_check_in === false) {
-                                infoDiv.textContent = `Anda masih belum bisa absen. Mulai pukul ${data.available_from}`;
+                                infoDiv.textContent = 'Belum waktunya check in. Mulai pukul ' + data.available_from;
                                 infoDiv.className = 'flex items-center text-sm text-yellow-600 font-medium';
                             } else {
-                                infoDiv.textContent = 'Silakan check in sekarang';
+                                infoDiv.textContent = 'Keadaan sekarang: belum check in';
                                 infoDiv.className = 'flex items-center text-sm text-gray-500';
                             }
                         }
-                        if (checkinBtn) checkinBtn.disabled = !locationPermissionGranted || data.can_check_in === false;
-                        if (checkoutBtn) checkoutBtn.disabled = true;
+                        checkinBtn.disabled = !locationPermissionGranted || data.can_check_in === false;
+                        checkoutBtn.disabled = true;
+                    
+                    // === CHECKED IN (Belum Check Out) ===
                     } else if (data.checked_in && !data.checked_out) {
                         const statusMap = {
                             'present': 'Hadir',
                             'late': 'Terlambat',
                             'half_day': 'Setengah Hari'
                         };
-                        if (statusDisplay) {
-                            statusDisplay.innerHTML = `
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-700">
-                                    <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></span>
-                                    Checked In (${data.check_in_time})
-                                </span>
-                            `;
+                        
+                        let statusDisplayText = statusMap[data.status] || data.status;
+                        let statusExtra = '';
+                        let statusIcon = 'bg-emerald-500';
+                        let bgColor = 'bg-emerald-100 text-emerald-700';
+                        
+                        if (data.status === 'late' && data.late_minutes > 0) {
+                            statusExtra = ' (' + data.late_minutes + ' menit)';
+                            statusIcon = 'bg-yellow-500';
+                            bgColor = 'bg-yellow-100 text-yellow-700';
                         }
-                        if (workDuration) workDuration.textContent = 'Sedang Berlangsung';
-                        if (workTime) workTime.textContent = 'Mulai: ' + data.check_in_time;
+                        
+                        statusDisplay.innerHTML = `
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${bgColor}">
+                                <span class="w-2 h-2 rounded-full ${statusIcon} mr-2 animate-pulse"></span>
+                                ${statusDisplayText}${statusExtra}
+                            </span>
+                        `;
+                        
+                        if (detailInfo) {
+                            detailInfo.textContent = 'Check in: ' + data.check_in_time;
+                            if (data.status === 'late' && data.late_minutes > 0) {
+                                detailInfo.textContent += ' | Terlambat ' + data.late_minutes + ' menit';
+                            }
+                            detailInfo.className = 'mt-1 text-xs text-gray-500';
+                        }
+                        
+                        workDuration.textContent = 'Sedang Berlangsung';
+                        workTime.textContent = 'Mulai: ' + data.check_in_time;
+                        
+                        if (data.status === 'late' && data.late_minutes > 0) {
+                            lateDisplay.textContent = data.late_minutes + ' menit';
+                            lateTime.textContent = 'Terlambat dari shift';
+                            lateDisplay.className = 'font-semibold text-yellow-600';
+                        } else {
+                            lateDisplay.textContent = 'Tepat waktu';
+                            lateTime.textContent = '✅';
+                            lateDisplay.className = 'font-semibold text-emerald-600';
+                        }
+                        
                         if (infoDiv && !infoDiv.textContent.includes('Jarak')) {
-                            infoDiv.textContent = data.status === 'late' && data.late_minutes > 0
-                                ? `Status: Terlambat ${data.late_minutes} menit`
-                                : 'Status: ' + (statusMap[data.status] || data.status);
+                            infoDiv.textContent = 'Status: ' + (statusMap[data.status] || data.status);
+                            if (data.status === 'late' && data.late_minutes > 0) {
+                                infoDiv.textContent += ' (Terlambat ' + data.late_minutes + ' menit)';
+                            }
                             infoDiv.className = 'flex items-center text-sm text-gray-500';
                         }
-                        if (checkinBtn) checkinBtn.disabled = true;
-                        if (checkoutBtn) checkoutBtn.disabled = !locationPermissionGranted;
+                        checkinBtn.disabled = true;
+                        checkoutBtn.disabled = !locationPermissionGranted;
+                    
+                    // === CHECKED OUT ===
                     } else if (data.checked_out) {
                         const statusMap = {
                             'present': 'Hadir',
                             'late': 'Terlambat',
                             'half_day': 'Setengah Hari',
                             'absent': 'Tidak Hadir',
-                            'leave': 'Cuti'
+                            'leave': 'Cuti',
+                            'auto_checkout': 'Auto Check Out'
                         };
-                        if (statusDisplay) {
-                            statusDisplay.innerHTML = `
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700">
-                                    <span class="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
-                                    Complete (${data.check_in_time} - ${data.check_out_time})
-                                </span>
-                            `;
+                        
+                        let statusDisplayText = statusMap[data.status] || data.status;
+                        let statusIcon = 'bg-blue-500';
+                        let bgColor = 'bg-blue-100 text-blue-700';
+                        let detailExtra = '';
+                        
+                        if (data.status === 'auto_checkout') {
+                            statusIcon = 'bg-orange-500';
+                            bgColor = 'bg-orange-100 text-orange-700';
+                            detailExtra = ' 🤖 Auto Check Out';
+                        } else if (data.status === 'half_day') {
+                            statusIcon = 'bg-purple-500';
+                            bgColor = 'bg-purple-100 text-purple-700';
                         }
-                        if (workDuration) workDuration.textContent = data.work_duration_text || '-';
-                        if (workTime) workTime.textContent = 'Selesai: ' + data.check_out_time;
+                        
+                        statusDisplay.innerHTML = `
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${bgColor}">
+                                <span class="w-2 h-2 rounded-full ${statusIcon} mr-2"></span>
+                                ${statusDisplayText}
+                            </span>
+                        `;
+                        
+                        if (detailInfo) {
+                            let detailText = 'In: ' + data.check_in_time + ' | Out: ' + data.check_out_time;
+                            if (data.is_auto_checkout) {
+                                detailText += ' | 🤖 Auto Check Out';
+                            }
+                            detailInfo.textContent = detailText;
+                            detailInfo.className = 'mt-1 text-xs text-gray-500';
+                        }
+                        
+                        workDuration.textContent = data.work_duration_text || '-';
+                        workTime.textContent = 'Selesai: ' + data.check_out_time;
+                        
+                        if (data.status === 'late') {
+                            lateDisplay.textContent = data.late_minutes + ' menit';
+                            lateTime.textContent = 'Terlambat';
+                            lateDisplay.className = 'font-semibold text-yellow-600';
+                        } else {
+                            lateDisplay.textContent = '-';
+                            lateTime.textContent = '-';
+                        }
+                        
                         if (infoDiv && !infoDiv.textContent.includes('Jarak')) {
                             infoDiv.textContent = 'Status: ' + (statusMap[data.status] || data.status);
+                            if (data.is_auto_checkout) {
+                                infoDiv.textContent += ' (Auto Check Out)';
+                            }
                             infoDiv.className = 'flex items-center text-sm text-gray-500';
                         }
-                        if (checkinBtn) checkinBtn.disabled = true;
-                        if (checkoutBtn) checkoutBtn.disabled = true;
+                        checkinBtn.disabled = true;
+                        checkoutBtn.disabled = true;
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    if (statusDisplay) {
-                        statusDisplay.innerHTML = `
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
-                                <span class="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
-                                Error
-                            </span>
-                        `;
-                    }
+                    statusDisplay.innerHTML = `
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
+                            <span class="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
+                            Error
+                        </span>
+                    `;
                     if (infoDiv) infoDiv.textContent = 'Gagal memuat data';
                 });
         }
 
-        // Handle Check In with location validation
+        // Handle Check In
         function handleCheckIn() {
+            if (todayStatus?.status === 'no_shift') {
+                alert('⚠️ Anda belum diberi shift. Silakan hubungi owner/admin.');
+                return;
+            }
+
             if (todayStatus?.status === 'holiday') {
-                alert('Hari ini adalah jadwal libur Anda. Check in tidak dapat dilakukan.');
+                alert('⚠️ Hari ini adalah jadwal libur Anda. Check in tidak dapat dilakukan.');
+                return;
+            }
+
+            if (todayStatus?.status === 'past_check_in') {
+                alert('⚠️ Anda sudah melewati batas waktu check in.');
                 return;
             }
 
             if (todayStatus?.can_check_in === false) {
-                alert(`Anda masih belum bisa absen.\n\nAbsen dapat dilakukan mulai pukul ${todayStatus.available_from}.`);
+                alert(`⏰ Anda masih belum bisa absen.\n\nCheck in dapat dilakukan mulai pukul ${todayStatus.available_from}.`);
                 return;
             }
 
@@ -623,7 +820,7 @@
             checkIn();
         }
 
-        // Handle Check Out with location validation
+        // Handle Check Out
         function handleCheckOut() {
             if (!locationPermissionGranted) {
                 alert('⚠️ Mohon aktifkan lokasi terlebih dahulu!\n\nKlik tombol "Aktifkan Lokasi" di atas.');
@@ -658,16 +855,20 @@
                 .then(data => {
                     if (data.success) {
                         const statusText = data.status === 'present' ? 'Hadir ✅' : 'Terlambat ⚠️';
-                        alert('✅ Check In Berhasil!\n\nStatus: ' + statusText);
-                        if (data.status === 'late' && data.late_minutes) {
-                            alert('Anda terlambat ' + data.late_minutes + ' menit.');
+                        let msg = '✅ Check In Berhasil!\n\nStatus: ' + statusText;
+                        if (data.status === 'late' && data.late_minutes > 0) {
+                            msg += '\n\n⏰ Anda terlambat ' + data.late_minutes + ' menit.';
                         }
+                        alert(msg);
                         checkTodayStatus();
                         setTimeout(() => location.reload(), 1000);
                     } else {
                         let errorMsg = data.error || 'Gagal check in';
+                        if (data.is_holiday) {
+                            errorMsg += '\n\n📅 Hari ini adalah jadwal libur Anda.';
+                        }
                         if (data.available_from) {
-                            errorMsg += '\n\nAbsen dapat dilakukan mulai pukul ' + data.available_from;
+                            errorMsg += '\n\n⏰ Check in dapat dilakukan mulai pukul ' + data.available_from;
                         }
                         if (data.distance !== undefined) {
                             errorMsg += '\n\n📍 Jarak Anda: ' + data.distance + ' meter dari kantor';
@@ -734,11 +935,9 @@
 
         // Load status on page load
         document.addEventListener('DOMContentLoaded', function() {
-            // Show location banner
             const banner = document.getElementById('location-banner');
             banner.classList.remove('hidden');
             
-            // Check if geolocation is available
             if (!isGeolocationAvailable()) {
                 document.getElementById('location-status-text').textContent = '⚠️ Browser tidak mendukung geolokasi';
                 document.getElementById('location-detail-text').textContent = 'Gunakan browser modern seperti Chrome atau Firefox';
@@ -748,13 +947,8 @@
                 return;
             }
 
-            // Auto request location
             requestLocationPermission();
-            
-            // Check attendance status
             checkTodayStatus();
-            
-            // Auto refresh every 60 seconds
             setInterval(checkTodayStatus, 60000);
         });
     </script>

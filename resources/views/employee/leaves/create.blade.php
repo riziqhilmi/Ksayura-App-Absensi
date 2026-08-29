@@ -96,7 +96,7 @@
                         <textarea id="reason" name="reason" rows="4" required
                             class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition duration-200 @error('reason') border-red-500 @enderror"
                             placeholder="Jelaskan alasan Anda mengajukan cuti...">{{ old('reason') }}</textarea>
-                        <p class="text-xs text-gray-500 mt-1">Minimal 10 karakter</p>
+                        <p class="text-xs text-gray-500 mt-1">Maksimal 500 karakter</p>
                         @error('reason')
                             <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
                         @enderror

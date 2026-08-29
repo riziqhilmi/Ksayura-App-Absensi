@@ -235,11 +235,6 @@
                            class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                            placeholder="Masukkan alasan libur">
                 </div>
-                <div class="flex items-center">
-                    <input type="checkbox" id="holidayPaid" name="is_paid" value="1" checked 
-                           class="rounded border-gray-300 text-purple-600 focus:ring-purple-500">
-                    <label class="ml-2 text-sm text-gray-700">Dibayar (Gaji tetap dibayar)</label>
-                </div>
                 <div class="flex justify-end space-x-3 pt-4 border-t">
                     <button type="button" onclick="closeAddHoliday()" 
                             class="px-4 py-2 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition">

@@ -113,16 +113,6 @@
                             @enderror
                         </div>
 
-                        <!-- Dibayar -->
-                        <div class="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl">
-                            <input type="checkbox" id="is_paid" name="is_paid" value="1"
-                                {{ old('is_paid', $employeeHoliday->is_paid) ? 'checked' : '' }}
-                                class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
-                            <label for="is_paid" class="text-sm font-medium text-gray-700">
-                                Dibayar (Gaji tetap dibayar)
-                            </label>
-                        </div>
-
                         <!-- Status -->
                         <div>
                             <label for="status" class="block text-sm font-medium text-gray-700 mb-1">

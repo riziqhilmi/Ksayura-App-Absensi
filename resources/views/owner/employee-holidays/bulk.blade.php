@@ -43,10 +43,6 @@
                             <input type="text" name="reason" value="{{ old('reason') }}" class="w-full px-4 py-2 border rounded-xl">
                         </div>
 
-                        <div class="flex items-center">
-                            <input type="checkbox" name="is_paid" value="1" checked class="rounded border-gray-300 text-purple-600">
-                            <label class="ml-2 text-sm text-gray-700">Dibayar</label>
-                        </div>
                     </div>
 
                     <div class="flex justify-end space-x-3 mt-6 pt-4 border-t">
