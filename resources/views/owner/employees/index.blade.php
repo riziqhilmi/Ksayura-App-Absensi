@@ -37,9 +37,9 @@
             <div class="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500">Rata-rata Gaji</p>
+                        <p class="text-sm font-medium text-gray-500">Rata-rata Gaji Harian</p>
                         <p class="text-2xl font-bold text-gray-800">
-                            Rp {{ number_format($employees->avg('base_salary') ?? 0, 0, ',', '.') }}
+                            Rp {{ number_format($employees->avg('daily_rate') ?? 0, 0, ',', '.') }}
                         </p>
                     </div>
                     <div class="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center">
@@ -84,7 +84,7 @@
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Karyawan</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kode</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posisi</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gaji</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gaji Harian</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Absen Hari Ini</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
@@ -112,8 +112,8 @@
                                 </td>
                                 <td class="px-6 py-4">
                                     <div>
-                                        <p class="font-medium text-gray-800">Rp {{ number_format($employee->base_salary, 0, ',', '.') }}</p>
-                                        <p class="text-xs text-gray-500">{{ ucfirst($employee->salary_type) }}</p>
+                                        <p class="font-medium text-emerald-600">Rp {{ number_format($employee->daily_rate, 0, ',', '.') }}</p>
+                                        <p class="text-xs text-gray-500">/ hari</p>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4">

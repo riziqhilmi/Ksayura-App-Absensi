@@ -69,21 +69,20 @@
             <!-- Summary Cards -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div class="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
-                    <p class="text-xs text-gray-500">Gaji Pokok</p>
-                    <p class="text-lg font-bold text-gray-800">Rp {{ number_format($salary->base_salary, 0, ',', '.') }}</p>
+                    <p class="text-xs text-gray-500">Hari Dibayar</p>
+                    <p class="text-lg font-bold text-gray-800">{{ number_format($salary->paid_days ?? ($salary->present_days + $salary->late_days), 1, ',', '.') }} hari</p>
                 </div>
                 <div class="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
-                    <p class="text-xs text-gray-500">Lembur</p>
-                    <p class="text-lg font-bold text-blue-600">Rp {{ number_format($salary->overtime_pay, 0, ',', '.') }}</p>
-                    <p class="text-xs text-gray-400">{{ $salary->overtime_hours }} jam</p>
+                    <p class="text-xs text-gray-500">Gaji Harian</p>
+                    <p class="text-lg font-bold text-blue-600">Rp {{ number_format($salary->daily_rate ?? $salary->employee->daily_rate ?? 0, 0, ',', '.') }}</p>
                 </div>
                 <div class="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
-                    <p class="text-xs text-gray-500">Bonus & Tunjangan</p>
-                    <p class="text-lg font-bold text-emerald-600">Rp {{ number_format($salary->attendance_bonus + $salary->performance_bonus, 0, ',', '.') }}</p>
+                    <p class="text-xs text-gray-500">Total Dibayar</p>
+                    <p class="text-lg font-bold text-emerald-600">Rp {{ number_format($salary->base_salary, 0, ',', '.') }}</p>
                 </div>
                 <div class="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
-                    <p class="text-xs text-gray-500">Potongan</p>
-                    <p class="text-lg font-bold text-red-600">Rp {{ number_format($salary->deductions, 0, ',', '.') }}</p>
+                    <p class="text-xs text-gray-500">Tidak Dibayar</p>
+                    <p class="text-lg font-bold text-red-600">{{ $salary->absent_days + $salary->leave_days + ($salary->holiday_days ?? 0) }} hari</p>
                 </div>
             </div>
 
@@ -101,8 +100,16 @@
                     </div>
                     <div class="divide-y divide-gray-100">
                         <div class="flex justify-between px-6 py-3">
-                            <span class="text-sm text-gray-600">Gaji Pokok</span>
-                            <span class="text-sm font-semibold text-gray-800">Rp {{ number_format($salary->base_salary, 0, ',', '.') }}</span>
+                            <span class="text-sm text-gray-600">Gaji Harian</span>
+                            <span class="text-sm font-semibold text-gray-800">Rp {{ number_format($salary->daily_rate ?? $salary->employee->daily_rate ?? 0, 0, ',', '.') }}</span>
+                        </div>
+                        <div class="flex justify-between px-6 py-3">
+                            <span class="text-sm text-gray-600">Hari Dibayar</span>
+                            <span class="text-sm font-semibold text-gray-800">{{ number_format($salary->paid_days ?? ($salary->present_days + $salary->late_days), 1, ',', '.') }} hari</span>
+                        </div>
+                        <div class="flex justify-between px-6 py-3 bg-emerald-50">
+                            <span class="text-sm font-medium text-emerald-700">Gaji Harian x Hari Dibayar</span>
+                            <span class="text-sm font-bold text-emerald-700">Rp {{ number_format($salary->base_salary, 0, ',', '.') }}</span>
                         </div>
                         <div class="flex justify-between px-6 py-3">
                             <span class="text-sm text-gray-600">Lembur</span>
@@ -143,7 +150,7 @@
                     </div>
                     <div class="divide-y divide-gray-100">
                         <div class="flex justify-between px-6 py-3">
-                            <span class="text-sm text-gray-600">Hari Kerja</span>
+                            <span class="text-sm text-gray-600">Hari Dalam Periode</span>
                             <span class="text-sm font-semibold text-gray-800">{{ $salary->working_days }} hari</span>
                         </div>
                         <div class="flex justify-between px-6 py-3">
@@ -162,13 +169,17 @@
                             <span class="text-sm text-gray-600">Cuti</span>
                             <span class="text-sm font-semibold text-purple-600">{{ $salary->leave_days }} hari</span>
                         </div>
+                        <div class="flex justify-between px-6 py-3">
+                            <span class="text-sm text-gray-600">Libur</span>
+                            <span class="text-sm font-semibold text-gray-600">{{ $salary->holiday_days ?? 0 }} hari</span>
+                        </div>
                         <div class="flex justify-between px-6 py-4 bg-gray-50">
-                            <span class="text-sm font-medium text-gray-700">Tingkat Kehadiran</span>
+                            <span class="text-sm font-medium text-gray-700">Persentase Hari Dibayar</span>
                             <span class="text-sm font-bold 
-                                @if($salary->working_days > 0 && ($salary->present_days / $salary->working_days) * 100 >= 90) text-emerald-600
-                                @elseif($salary->working_days > 0 && ($salary->present_days / $salary->working_days) * 100 >= 75) text-yellow-600
+                                @if($salary->working_days > 0 && (($salary->paid_days ?? ($salary->present_days + $salary->late_days)) / $salary->working_days) * 100 >= 90) text-emerald-600
+                                @elseif($salary->working_days > 0 && (($salary->paid_days ?? ($salary->present_days + $salary->late_days)) / $salary->working_days) * 100 >= 75) text-yellow-600
                                 @else text-red-600 @endif">
-                                {{ $salary->working_days > 0 ? round(($salary->present_days / $salary->working_days) * 100) : 0 }}%
+                                {{ $salary->working_days > 0 ? round((($salary->paid_days ?? ($salary->present_days + $salary->late_days)) / $salary->working_days) * 100) : 0 }}%
                             </span>
                         </div>
                     </div>
@@ -178,14 +189,15 @@
             <!-- Progress Bar Kehadiran -->
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
                 <div class="flex justify-between items-center mb-2">
-                    <h4 class="font-semibold text-gray-800 text-sm">Tingkat Kehadiran</h4>
+                    <h4 class="font-semibold text-gray-800 text-sm">Persentase Hari Dibayar</h4>
                     <span class="text-sm font-bold text-gray-700">
-                        {{ $salary->working_days > 0 ? round(($salary->present_days / $salary->working_days) * 100) : 0 }}%
+                        {{ $salary->working_days > 0 ? round((($salary->paid_days ?? ($salary->present_days + $salary->late_days)) / $salary->working_days) * 100) : 0 }}%
                     </span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-3">
                     @php
-                        $percentage = $salary->working_days > 0 ? round(($salary->present_days / $salary->working_days) * 100) : 0;
+                        $paidDays = $salary->paid_days ?? ($salary->present_days + $salary->late_days);
+                        $percentage = $salary->working_days > 0 ? round(($paidDays / $salary->working_days) * 100) : 0;
                         $color = $percentage >= 90 ? 'bg-emerald-500' : ($percentage >= 75 ? 'bg-yellow-500' : 'bg-red-500');
                     @endphp
                     <div class="{{ $color }} h-3 rounded-full transition-all duration-500" style="width: {{ $percentage }}%"></div>

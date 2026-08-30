@@ -4,10 +4,10 @@
             <!-- Logo dan Header -->
             <div class="text-center mb-8">
                 <div class="inline-flex items-center justify-center mb-4">
-                    <img src="{{ asset('images/logo3.png') }}" alt="Kantor Sayur" class="h-20 w-auto">
+                    <img src="{{ asset('images/logo.png') }}" alt="Kantor Sayur" class="h-20 w-auto">
                 </div>
-                <h1 class="text-2xl font-bold text-gray-800">KSayura</h1>
-                <p class="text-sm text-gray-500 mt-1">Sistem Absensi Kantor Sayur</p>
+                <h1 class="text-2xl font-bold text-gray-800">Kantor Sayur</h1>
+                <p class="text-sm text-gray-500 mt-1">KSayura App Absensi</p>
             </div>
 
             <!-- Session Status -->

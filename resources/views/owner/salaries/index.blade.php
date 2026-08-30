@@ -82,7 +82,8 @@
                         <tr>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Periode</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Karyawan</th>
-                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Gaji Pokok</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Hari Dibayar</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Gaji Harian</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Total Gaji</th>
                             <th class="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                             <th class="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
@@ -100,8 +101,15 @@
                                         <span class="text-sm font-medium text-gray-800">{{ $salary->employee->user->name ?? '-' }}</span>
                                     </div>
                                 </td>
-                                <td class="px-6 py-4 text-sm text-gray-600">Rp {{ number_format($salary->base_salary, 0, ',', '.') }}</td>
-                                <td class="px-6 py-4 text-sm font-semibold text-emerald-600">Rp {{ number_format($salary->total_salary, 0, ',', '.') }}</td>
+                                <td class="px-6 py-4">
+                                    <p class="text-sm font-medium text-gray-800">{{ number_format($salary->paid_days ?? ($salary->present_days + $salary->late_days), 1, ',', '.') }} hari</p>
+                                    <p class="text-xs text-gray-500">{{ $salary->present_days }} hadir, {{ $salary->late_days }} terlambat</p>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600">Rp {{ number_format($salary->daily_rate ?? $salary->employee->daily_rate ?? 0, 0, ',', '.') }}</td>
+                                <td class="px-6 py-4">
+                                    <p class="text-sm font-semibold text-emerald-600">Rp {{ number_format($salary->total_salary, 0, ',', '.') }}</p>
+                                    <p class="text-xs text-gray-500">{{ number_format($salary->paid_days ?? ($salary->present_days + $salary->late_days), 1, ',', '.') }} x Rp {{ number_format($salary->daily_rate ?? $salary->employee->daily_rate ?? 0, 0, ',', '.') }}</p>
+                                </td>
                                 <td class="px-6 py-4">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
                                         @if($salary->status == 'draft') bg-gray-100 text-gray-800
@@ -116,7 +124,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                                <td colspan="7" class="px-6 py-12 text-center text-gray-500">
                                     <p class="text-lg font-medium">Belum ada data gaji</p>
                                     <p class="text-sm">Klik "Hitung Gaji" untuk memulai</p>
                                 </td>

@@ -39,9 +39,7 @@ class EmployeeController extends Controller
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string',
             'position' => 'nullable|string|max:100',
-            'base_salary' => 'required|numeric|min:0',
-            'salary_type' => 'required|in:daily,weekly,monthly',
-            'daily_rate' => 'nullable|numeric|min:0',
+            'daily_rate' => 'required|numeric|min:0',
             'hourly_rate' => 'nullable|numeric|min:0',
             'hire_date' => 'required|date',
         ]);
@@ -66,8 +64,8 @@ class EmployeeController extends Controller
             'user_id' => $user->id,
             'employee_code' => 'EMP' . str_pad(Employee::count() + 1, 4, '0', STR_PAD_LEFT),
             'position' => $request->position,
-            'base_salary' => $request->base_salary,
-            'salary_type' => $request->salary_type,
+            'base_salary' => $request->daily_rate, // Simpan daily_rate sebagai base_salary juga
+            'salary_type' => 'daily', // Default daily
             'daily_rate' => $request->daily_rate,
             'hourly_rate' => $request->hourly_rate,
             'status' => 'active',
@@ -97,10 +95,9 @@ class EmployeeController extends Controller
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string',
             'position' => 'nullable|string|max:100',
-            'base_salary' => 'required|numeric|min:0',
-            'salary_type' => 'required|in:daily,weekly,monthly',
-            'daily_rate' => 'nullable|numeric|min:0',
+            'daily_rate' => 'required|numeric|min:0',
             'hourly_rate' => 'nullable|numeric|min:0',
+            'hire_date' => 'nullable|date',
             'status' => 'required|in:active,inactive,resigned',
         ]);
 
@@ -114,9 +111,9 @@ class EmployeeController extends Controller
             'email' => $request->email,
             'phone' => $request->phone,
             'address' => $request->address,
+            'hire_date' => $request->hire_date,
         ];
 
-        // Update password if provided
         if ($request->filled('password')) {
             $userData['password'] = Hash::make($request->password);
         }
@@ -126,8 +123,8 @@ class EmployeeController extends Controller
         // Update Employee
         $employee->update([
             'position' => $request->position,
-            'base_salary' => $request->base_salary,
-            'salary_type' => $request->salary_type,
+            'base_salary' => $request->daily_rate,
+            'salary_type' => 'daily',
             'daily_rate' => $request->daily_rate,
             'hourly_rate' => $request->hourly_rate,
             'status' => $request->status,
@@ -138,7 +135,6 @@ class EmployeeController extends Controller
 
     public function destroy(Employee $employee)
     {
-        // Delete user account (cascade will delete employee)
         $employee->user->delete();
         $employee->delete();
 
@@ -156,7 +152,6 @@ class EmployeeController extends Controller
         return response()->json(['success' => true, 'message' => 'Status karyawan berhasil diperbarui']);
     }
 
-    // Reset password for employee
     public function resetPassword(Request $request, Employee $employee)
     {
         $request->validate([

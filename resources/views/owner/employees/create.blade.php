@@ -53,96 +53,72 @@
                                 <input type="password" id="password_confirmation" name="password_confirmation" required
                                     class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Informasi Pribadi -->
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                            <svg class="w-5 h-5 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                            </svg>
-                            Informasi Pribadi
-                        </h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Nomor Telepon</label>
                                 <input type="text" id="phone" name="phone" value="{{ old('phone') }}"
                                     class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
+                                @error('phone')
+                                    <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+                                @enderror
                             </div>
                             <div>
                                 <label for="hire_date" class="block text-sm font-medium text-gray-700 mb-1">Tanggal Bergabung *</label>
-                                <input type="date" id="hire_date" name="hire_date" value="{{ old('hire_date', date('Y-m-d')) }}" required
+                                <input type="date" id="hire_date" name="hire_date" value="{{ old('hire_date') }}" required
                                     class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
                                 @error('hire_date')
                                     <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
                                 @enderror
                             </div>
-                        </div>
-                        <div class="mt-4">
-                            <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Alamat</label>
-                            <textarea id="address" name="address" rows="2"
-                                class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">{{ old('address') }}</textarea>
+                            <div class="md:col-span-2">
+                                <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Alamat</label>
+                                <textarea id="address" name="address" rows="2"
+                                    class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">{{ old('address') }}</textarea>
+                                @error('address')
+                                    <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
                         </div>
                     </div>
 
                     <!-- Informasi Pekerjaan -->
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                            <svg class="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                            </svg>
-                            Informasi Pekerjaan
-                        </h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label for="position" class="block text-sm font-medium text-gray-700 mb-1">Posisi</label>
-                                <input type="text" id="position" name="position" value="{{ old('position') }}"
-                                    class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
-                            </div>
-                            <div>
-                                <label for="salary_type" class="block text-sm font-medium text-gray-700 mb-1">Tipe Gaji *</label>
-                                <select id="salary_type" name="salary_type" required
-                                    class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
-                                    <option value="daily" {{ old('salary_type') == 'daily' ? 'selected' : '' }}>Harian</option>
-                                    <option value="weekly" {{ old('salary_type') == 'weekly' ? 'selected' : '' }}>Mingguan</option>
-                                    <option value="monthly" {{ old('salary_type') == 'monthly' ? 'selected' : '' }}>Bulanan</option>
-                                </select>
-                                @error('salary_type')
-                                    <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label for="base_salary" class="block text-sm font-medium text-gray-700 mb-1">Gaji Pokok *</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-2.5 text-gray-500">Rp</span>
-                                    <input type="number" id="base_salary" name="base_salary" value="{{ old('base_salary') }}" required
-                                        class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
-                                </div>
-                                @error('base_salary')
-                                    <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
-                                @enderror
-                            </div>
-                            <div>
-                                <label for="daily_rate" class="block text-sm font-medium text-gray-700 mb-1">Tarif Harian</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-2.5 text-gray-500">Rp</span>
-                                    <input type="number" id="daily_rate" name="daily_rate" value="{{ old('daily_rate') }}"
-                                        class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
-                                </div>
-                                <p class="text-xs text-gray-500 mt-1">Opsional</p>
-                            </div>
-                            <div>
-                                <label for="hourly_rate" class="block text-sm font-medium text-gray-700 mb-1">Tarif Per Jam</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-2.5 text-gray-500">Rp</span>
-                                    <input type="number" id="hourly_rate" name="hourly_rate" value="{{ old('hourly_rate') }}"
-                                        class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
-                                </div>
-                                <p class="text-xs text-gray-500 mt-1">Opsional</p>
-                            </div>
-                        </div>
-                    </div>
+<div>
+    <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+        <svg class="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        Informasi Pekerjaan
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+            <label for="position" class="block text-sm font-medium text-gray-700 mb-1">Posisi</label>
+            <input type="text" id="position" name="position" value="{{ old('position') }}"
+                class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
+        </div>
+        <div>
+            <label for="daily_rate" class="block text-sm font-medium text-gray-700 mb-1">Gaji Harian <span class="text-red-500">*</span></label>
+            <div class="relative">
+                <span class="absolute left-3 top-2.5 text-gray-500">Rp</span>
+                <input type="number" id="daily_rate" name="daily_rate" value="{{ old('daily_rate') }}" required
+                    class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
+                    placeholder="Contoh: 150000">
+            </div>
+            <p class="text-xs text-gray-500 mt-1">Masukkan gaji per hari karyawan</p>
+            @error('daily_rate')
+                <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+            @enderror
+        </div>
+        <div>
+            <label for="hourly_rate" class="block text-sm font-medium text-gray-700 mb-1">Tarif Per Jam (Opsional)</label>
+            <div class="relative">
+                <span class="absolute left-3 top-2.5 text-gray-500">Rp</span>
+                <input type="number" id="hourly_rate" name="hourly_rate" value="{{ old('hourly_rate') }}"
+                    class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
+                    placeholder="Contoh: 20000">
+            </div>
+            <p class="text-xs text-gray-500 mt-1">Opsional, untuk perhitungan lembur</p>
+        </div>
+    </div>
+</div>
 
                     <!-- Actions -->
                     <div class="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">

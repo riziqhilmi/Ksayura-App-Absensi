@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Models\EmployeeHoliday;
 use App\Models\Salary;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -86,8 +87,8 @@ class SalaryController extends Controller
                     ->where('period', $period)
                     ->first();
 
-                if ($existingSalary && $existingSalary->status !== 'draft') {
-                    continue; // Skip if already calculated or paid
+                if ($existingSalary && $existingSalary->status === 'paid') {
+                    continue;
                 }
 
                 // Get attendance data
@@ -98,32 +99,23 @@ class SalaryController extends Controller
                 $workingDays = $endDate->diffInDays($startDate) + 1;
                 $presentDays = $attendances->where('status', 'present')->count();
                 $lateDays = $attendances->where('status', 'late')->count();
+                $halfDayDays = $attendances->where('status', 'half_day')->count();
+                $autoCheckoutDays = $attendances->where('status', 'auto_checkout')->count();
                 $absentDays = $attendances->where('status', 'absent')->count();
                 $leaveDays = $attendances->where('status', 'leave')->count();
+                $holidayDays = EmployeeHoliday::where('employee_id', $employee->id)
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->where('status', '!=', 'cancelled')
+                    ->count();
 
-                // Calculate salary components
-                $baseSalary = $employee->base_salary;
-                
-                // Calculate daily rate
-                $dailyRate = $employee->daily_rate ?? ($baseSalary / $workingDays);
-                
-                // Calculate attendance bonus (example: 10% of base salary if attendance > 90%)
-                $attendanceRate = $workingDays > 0 ? ($presentDays / $workingDays) * 100 : 0;
+                $dailyRate = (float) ($employee->daily_rate ?? $employee->base_salary ?? 0);
+                $paidDays = $presentDays + $lateDays + $autoCheckoutDays + ($halfDayDays * 0.5);
+                $baseSalary = $dailyRate * $paidDays;
+                $overtimeHours = 0;
+                $overtimePay = 0;
                 $attendanceBonus = 0;
-                if ($attendanceRate >= 90) {
-                    $attendanceBonus = $baseSalary * 0.1;
-                }
-
-                // Calculate overtime (example: 1.5x hourly rate)
-                $overtimeHours = 0; // Could be fetched from attendance
-                $hourlyRate = $employee->hourly_rate ?? ($baseSalary / ($workingDays * 8));
-                $overtimePay = $overtimeHours * $hourlyRate * 1.5;
-
-                // Calculate deductions (example: late penalty)
-                $deductions = $lateDays * ($dailyRate * 0.1);
-
-                // Total salary
-                $totalSalary = $baseSalary + $overtimePay + $attendanceBonus - $deductions;
+                $deductions = 0;
+                $totalSalary = $baseSalary;
 
                 // Create or update salary
                 Salary::updateOrCreate(
@@ -134,6 +126,9 @@ class SalaryController extends Controller
                     [
                         'start_date' => $startDate,
                         'end_date' => $endDate,
+                        'daily_rate' => $dailyRate,
+                        'paid_days' => $paidDays,
+                        'holiday_days' => $holidayDays,
                         'base_salary' => $baseSalary,
                         'overtime_hours' => $overtimeHours,
                         'overtime_pay' => $overtimePay,

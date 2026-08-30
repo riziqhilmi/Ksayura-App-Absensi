@@ -66,4 +66,21 @@ class Employee extends Model
     {
         return $this->user->address;
     }
+
+    // Helper untuk format gaji harian
+    public function getDailyRateFormattedAttribute()
+    {
+        return 'Rp ' . number_format($this->daily_rate, 0, ',', '.');
+    }
+
+    // Helper untuk mendapatkan tipe gaji
+    public function getSalaryTypeLabelAttribute()
+    {
+        $types = [
+            'daily' => 'Harian',
+            'weekly' => 'Mingguan',
+            'monthly' => 'Bulanan',
+        ];
+        return $types[$this->salary_type] ?? $this->salary_type;
+    }
 }
