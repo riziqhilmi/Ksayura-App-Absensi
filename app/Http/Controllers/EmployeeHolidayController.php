@@ -61,7 +61,7 @@ class EmployeeHolidayController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'employee_id' => 'required|exists:employees,id',
-            'date' => 'required|date|after_or_equal:today',
+            'date' => 'required|date',
             'reason' => 'nullable|string|max:255',
             'type' => 'required|in:annual,sick,personal,company,other',
             'is_paid' => 'boolean',
@@ -157,7 +157,7 @@ class EmployeeHolidayController extends Controller
         $validator = Validator::make($request->all(), [
             'employee_ids' => 'required|array|min:1',
             'employee_ids.*' => 'exists:employees,id',
-            'date' => 'required|date|after_or_equal:today',
+            'date' => 'required|date',
             'reason' => 'nullable|string|max:255',
             'type' => 'required|in:annual,sick,personal,company,other',
             'is_paid' => 'boolean',
@@ -263,7 +263,7 @@ class EmployeeHolidayController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'employee_id' => 'required|exists:employees,id',
-            'date' => 'required|date|after_or_equal:today',
+            'date' => 'required|date',
             'type' => 'required|in:annual,sick,personal,company,other',
             'reason' => 'nullable|string|max:255',
             'is_paid' => 'boolean',

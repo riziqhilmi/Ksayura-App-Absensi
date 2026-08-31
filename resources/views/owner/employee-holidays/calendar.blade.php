@@ -172,8 +172,8 @@
                                         @endforeach
                                         
                                         <!-- Tombol Tambah Libur -->
-                                        <button onclick="openAddHoliday('{{ $dateStr }}')" 
-                                                class="w-full text-xs text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded px-1 py-0.5 transition text-center">
+                                        <button type="button" onclick="openAddHoliday('{{ $dateStr }}')"
+                                                class="w-full rounded px-1 py-0.5 text-center text-xs text-gray-400 transition hover:bg-purple-50 hover:text-purple-600">
                                             + Tambah
                                         </button>
                                     </div>
@@ -258,7 +258,7 @@
             document.getElementById('holidayDate').value = date;
             
             // Format date for display
-            const dateObj = new Date(date);
+            const dateObj = new Date(`${date}T00:00:00`);
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             document.getElementById('selectedDateDisplay').textContent = dateObj.toLocaleDateString('id-ID', options);
             
@@ -284,11 +284,23 @@
             fetch('{{ route("owner.employee-holidays.store-from-calendar") }}', {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
                 },
                 body: formData
             })
-            .then(response => response.json())
+            .then(async response => {
+                const data = await response.json().catch(() => ({
+                    success: false,
+                    message: 'Respons server tidak valid.'
+                }));
+
+                if (!response.ok && !data.message) {
+                    data.message = 'Gagal menyimpan hari libur.';
+                }
+
+                return data;
+            })
             .then(data => {
                 if (data.success) {
                     alert('✅ ' + data.message);

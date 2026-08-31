@@ -205,10 +205,12 @@ class EmployeeCalendarController extends Controller
         foreach ($calendarData as $data) {
             if ($data['is_holiday']) {
                 $totalHolidays++;
-            } elseif ($data['is_weekend']) {
-                $totalWeekends++;
             } elseif ($data['shift']) {
                 $totalWorkingDays++;
+            }
+
+            if ($data['is_weekend']) {
+                $totalWeekends++;
             }
         }
 
