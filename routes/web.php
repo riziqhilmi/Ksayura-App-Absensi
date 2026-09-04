@@ -13,6 +13,7 @@ use App\Http\Controllers\OwnerDashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\ShiftController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -27,8 +28,10 @@ Route::get('/', function () {
 });
 
 // Dashboard
-Route::get('/dashboard', function () {
-    return view('dashboard');
+Route::get('/dashboard', function (Request $request) {
+    return redirect()->route(
+        $request->user()->isOwner() ? 'owner.dashboard' : 'employee.dashboard'
+    );
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 // Profile Routes
