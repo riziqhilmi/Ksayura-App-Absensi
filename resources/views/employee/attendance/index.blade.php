@@ -603,8 +603,8 @@
                         checkinBtn.disabled = true;
                         checkoutBtn.disabled = true;
                     
-                    // === PAST CHECK IN (Melewati batas waktu) ===
-                    } else if (data.status === 'past_check_in') {
+                    // === ABSENT / PAST SHIFT ===
+                    } else if (data.status === 'absent' || data.status === 'past_check_in') {
                         statusDisplay.innerHTML = `
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
                                 <span class="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
@@ -612,14 +612,16 @@
                             </span>
                         `;
                         if (detailInfo) {
-                            detailInfo.textContent = 'Batas check in: ' + data.max_check_in_time;
+                            detailInfo.textContent = data.shift_end_time
+                                ? 'Shift selesai: ' + data.shift_end_time
+                                : (data.message || 'Tercatat tidak hadir');
                             detailInfo.className = 'mt-1 text-xs text-red-600';
                         }
                         workDuration.textContent = '-';
-                        workTime.textContent = 'Melewati batas waktu';
+                        workTime.textContent = 'Tidak hadir';
                         lateDisplay.textContent = '-';
                         lateTime.textContent = '-';
-                        infoDiv.textContent = 'Anda sudah melewati batas waktu check in (maksimal 2 jam setelah shift berakhir)';
+                        infoDiv.textContent = data.message || 'Anda sudah melewati jam shift dan tercatat tidak hadir';
                         infoDiv.className = 'flex items-center text-sm text-red-600 font-medium';
                         checkinBtn.disabled = true;
                         checkoutBtn.disabled = true;
@@ -802,8 +804,8 @@
                 return;
             }
 
-            if (todayStatus?.status === 'past_check_in') {
-                alert('⚠️ Anda sudah melewati batas waktu check in.');
+            if (todayStatus?.status === 'absent' || todayStatus?.status === 'past_check_in') {
+                alert('⚠️ Anda sudah melewati jam shift dan tercatat tidak hadir.');
                 return;
             }
 

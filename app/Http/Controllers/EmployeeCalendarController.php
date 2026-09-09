@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\EmployeeHoliday;
 use App\Models\EmployeeShift;
+use App\Models\Attendance;
 use App\Models\LeaveRequest;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -103,6 +104,15 @@ class EmployeeCalendarController extends Controller
                 return $item->date->format('Y-m-d');
             });
 
+        $attendances = Attendance::with('shift')
+            ->where('employee_id', $employee->id)
+            ->whereYear('date', $year)
+            ->whereMonth('date', $month)
+            ->get()
+            ->keyBy(function ($item) {
+                return $item->date->format('Y-m-d');
+            });
+
         $approvedLeaves = LeaveRequest::where('employee_id', $employee->id)
             ->where('status', 'approved')
             ->whereDate('start_date', '<=', $targetMonth->copy()->endOfMonth()->toDateString())
@@ -140,6 +150,7 @@ class EmployeeCalendarController extends Controller
             $shiftForDay = $this->findShiftForDate($shifts, $date, $dayName);
             $isHoliday = isset($holidays[$dateStr]);
             $holidayData = $isHoliday ? $holidays[$dateStr] : null;
+            $attendance = $attendances[$dateStr] ?? null;
 
             $calendarData[$dateStr] = [
                 'date' => $dateStr,
@@ -147,6 +158,11 @@ class EmployeeCalendarController extends Controller
                 'is_weekend' => $date->isWeekend(),
                 'is_holiday' => $isHoliday,
                 'holiday' => $holidayData,
+                'attendance' => $attendance,
+                'attendance_status' => $attendance?->status,
+                'is_absent' => $attendance?->status === 'absent',
+                'is_present' => $attendance?->status === 'present',
+                'is_late' => $attendance?->status === 'late',
                 'shift' => $shiftForDay ? $shiftForDay->shift : null,
                 'employee_shift' => $shiftForDay,
                 'is_today' => $dateStr === $today,
@@ -165,6 +181,7 @@ class EmployeeCalendarController extends Controller
             'today' => $today,
             'shifts' => $shifts,
             'holidays' => $holidays,
+            'attendances' => $attendances,
             'stats' => $this->calculateStats($calendarData, $daysInMonth),
         ];
     }
@@ -201,12 +218,27 @@ class EmployeeCalendarController extends Controller
         $totalWorkingDays = 0;
         $totalHolidays = 0;
         $totalWeekends = 0;
+        $totalAbsentDays = 0;
+        $totalPresentDays = 0;
+        $totalLateDays = 0;
 
         foreach ($calendarData as $data) {
             if ($data['is_holiday']) {
                 $totalHolidays++;
             } elseif ($data['shift']) {
                 $totalWorkingDays++;
+            }
+
+            if ($data['is_absent']) {
+                $totalAbsentDays++;
+            }
+
+            if ($data['is_present']) {
+                $totalPresentDays++;
+            }
+
+            if ($data['is_late']) {
+                $totalLateDays++;
             }
 
             if ($data['is_weekend']) {
@@ -218,6 +250,9 @@ class EmployeeCalendarController extends Controller
             'total_days' => $daysInMonth,
             'working_days' => $totalWorkingDays,
             'holidays' => $totalHolidays,
+            'present_days' => $totalPresentDays,
+            'late_days' => $totalLateDays,
+            'absent_days' => $totalAbsentDays,
             'weekends' => $totalWeekends,
         ];
     }

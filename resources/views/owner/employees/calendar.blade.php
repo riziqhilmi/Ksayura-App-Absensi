@@ -21,6 +21,9 @@
     @php
         $workingPercent = ($stats['total_days'] ?? 0) > 0 ? (($stats['working_days'] ?? 0) / $stats['total_days']) * 100 : 0;
         $holidayPercent = ($stats['total_days'] ?? 0) > 0 ? (($stats['holidays'] ?? 0) / $stats['total_days']) * 100 : 0;
+        $absentPercent = ($stats['total_days'] ?? 0) > 0 ? (($stats['absent_days'] ?? 0) / $stats['total_days']) * 100 : 0;
+        $presentPercent = ($stats['total_days'] ?? 0) > 0 ? (($stats['present_days'] ?? 0) / $stats['total_days']) * 100 : 0;
+        $latePercent = ($stats['total_days'] ?? 0) > 0 ? (($stats['late_days'] ?? 0) / $stats['total_days']) * 100 : 0;
     @endphp
 
     <div class="bg-gray-50 py-6">
@@ -64,7 +67,7 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7 md:gap-4">
                 <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
                     <p class="text-xs font-medium uppercase text-gray-400">Total Hari</p>
                     <p class="mt-1 text-2xl font-bold text-gray-800">{{ $stats['total_days'] ?? 0 }}</p>
@@ -74,6 +77,20 @@
                     <p class="mt-1 text-2xl font-bold text-emerald-600">{{ $stats['working_days'] ?? 0 }}</p>
                     <div class="mt-2 h-1.5 w-full rounded-full bg-gray-100">
                         <div class="h-1.5 rounded-full bg-emerald-500" style="width: {{ $workingPercent }}%"></div>
+                    </div>
+                </div>
+                <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-medium uppercase text-gray-400">Hadir</p>
+                    <p class="mt-1 text-2xl font-bold text-emerald-600">{{ $stats['present_days'] ?? 0 }}</p>
+                    <div class="mt-2 h-1.5 w-full rounded-full bg-gray-100">
+                        <div class="h-1.5 rounded-full bg-emerald-500" style="width: {{ $presentPercent }}%"></div>
+                    </div>
+                </div>
+                <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-medium uppercase text-gray-400">Terlambat</p>
+                    <p class="mt-1 text-2xl font-bold text-yellow-600">{{ $stats['late_days'] ?? 0 }}</p>
+                    <div class="mt-2 h-1.5 w-full rounded-full bg-gray-100">
+                        <div class="h-1.5 rounded-full bg-yellow-500" style="width: {{ $latePercent }}%"></div>
                     </div>
                 </div>
                 <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -87,12 +104,25 @@
                     <p class="text-xs font-medium uppercase text-gray-400">Akhir Pekan</p>
                     <p class="mt-1 text-2xl font-bold text-gray-500">{{ $stats['weekends'] ?? 0 }}</p>
                 </div>
+                <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+                    <p class="text-xs font-medium uppercase text-gray-400">Tidak Hadir</p>
+                    <p class="mt-1 text-2xl font-bold text-red-600">{{ $stats['absent_days'] ?? 0 }}</p>
+                    <div class="mt-2 h-1.5 w-full rounded-full bg-gray-100">
+                        <div class="h-1.5 rounded-full bg-red-500" style="width: {{ $absentPercent }}%"></div>
+                    </div>
+                </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-4">
                 <span class="mr-1 text-sm font-semibold text-gray-700">Legenda</span>
                 <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
                     <span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span> Shift Kerja
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+                    <span class="h-2.5 w-2.5 rounded-full bg-emerald-600"></span> Hadir
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-yellow-50 px-3 py-1.5 text-xs font-medium text-yellow-700">
+                    <span class="h-2.5 w-2.5 rounded-full bg-yellow-500"></span> Terlambat
                 </span>
                 <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
                     <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span> Libur Owner/Cuti
@@ -104,7 +134,10 @@
                     <span class="h-2.5 w-2.5 rounded-full bg-blue-500"></span> Hari Ini
                 </span>
                 <span class="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600">
-                    <span class="h-2.5 w-2.5 rounded-full border border-red-300 bg-red-100"></span> Kosong
+                    <span class="h-2.5 w-2.5 rounded-full bg-red-500"></span> Tidak Hadir
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-500">
+                    <span class="h-2.5 w-2.5 rounded-full border border-gray-300 bg-gray-100"></span> Kosong
                 </span>
             </div>
 
@@ -136,16 +169,26 @@
                                 $dayData = $dateStr ? ($calendarData[$dateStr] ?? null) : null;
                                 $isToday = $dateStr === $today;
                                 $isWeekend = $dateObj && $dateObj->isWeekend();
+                                $isAbsent = $dayData['is_absent'] ?? false;
+                                $isPresent = $dayData['is_present'] ?? false;
+                                $isLate = $dayData['is_late'] ?? false;
                             @endphp
 
                             <div class="min-h-[82px] border-r border-b p-1.5 transition hover:bg-gray-50 sm:min-h-[118px] sm:p-2.5
-                                {{ $isToday ? 'bg-blue-50 ring-2 ring-blue-500 ring-inset' : '' }}
+                                {{ $isToday && !$isAbsent && !$isPresent && !$isLate ? 'bg-blue-50 ring-2 ring-blue-500 ring-inset' : '' }}
+                                {{ $isAbsent ? 'bg-red-50/70 ring-2 ring-red-300 ring-inset' : '' }}
+                                {{ $isPresent ? 'bg-emerald-50/70 ring-2 ring-emerald-300 ring-inset' : '' }}
+                                {{ $isLate ? 'bg-yellow-50/80 ring-2 ring-yellow-300 ring-inset' : '' }}
                                 {{ !$isValidDay ? 'bg-gray-50/70' : '' }}
-                                {{ $isWeekend && $isValidDay && !$isToday ? 'bg-gray-50/30' : '' }}">
+                                {{ $isWeekend && $isValidDay && !$isToday && !$isAbsent && !$isPresent && !$isLate ? 'bg-gray-50/30' : '' }}">
                                 @if($isValidDay && $dayData)
                                     <div class="flex items-center justify-between gap-1">
                                         <span class="text-xs font-semibold sm:text-sm
-                                            {{ $isToday ? 'flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white sm:h-7 sm:w-7' : 'text-gray-700' }}">
+                                            {{ $isToday && !$isAbsent && !$isPresent && !$isLate ? 'flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white sm:h-7 sm:w-7' : '' }}
+                                            {{ $isToday && $isAbsent ? 'flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white sm:h-7 sm:w-7' : '' }}
+                                            {{ $isToday && $isPresent ? 'flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white sm:h-7 sm:w-7' : '' }}
+                                            {{ $isToday && $isLate ? 'flex h-6 w-6 items-center justify-center rounded-full bg-yellow-500 text-white sm:h-7 sm:w-7' : '' }}
+                                            {{ !$isToday ? 'text-gray-700' : '' }}">
                                             {{ $cellDay }}
                                         </span>
                                         @if($dayData['is_weekend'])
@@ -154,7 +197,39 @@
                                     </div>
 
                                     <div class="mt-1 space-y-1 sm:mt-2">
-                                        @if($dayData['is_holiday'])
+                                        @if($dayData['is_absent'])
+                                            <div class="rounded-lg bg-red-50 px-1.5 py-1 text-[9px] leading-tight text-red-800 ring-1 ring-red-200 sm:px-2 sm:text-xs">
+                                                <span class="block truncate font-semibold">Tidak Hadir</span>
+                                                @if($dayData['shift'])
+                                                    <span class="mt-0.5 block text-[8px] font-medium text-red-600 sm:text-[10px]">
+                                                        {{ $dayData['shift']->name }}
+                                                    </span>
+                                                @endif
+                                                @if($dayData['attendance'] && $dayData['attendance']->notes)
+                                                    <span class="mt-1 hidden truncate text-[10px] text-red-500 sm:block">{{ Str::limit($dayData['attendance']->notes, 24) }}</span>
+                                                @endif
+                                            </div>
+                                        @elseif($dayData['is_late'])
+                                            <div class="rounded-lg bg-yellow-50 px-1.5 py-1 text-[9px] leading-tight text-yellow-800 ring-1 ring-yellow-200 sm:px-2 sm:text-xs">
+                                                <span class="block truncate font-semibold">Terlambat</span>
+                                                @if($dayData['shift'])
+                                                    <span class="mt-0.5 block text-[8px] font-medium text-yellow-700 sm:text-[10px]">{{ $dayData['shift']->name }}</span>
+                                                @endif
+                                                @if($dayData['attendance'] && $dayData['attendance']->check_in_time)
+                                                    <span class="mt-1 hidden truncate text-[10px] text-yellow-600 sm:block">Masuk {{ $dayData['attendance']->check_in_time->format('H:i') }}</span>
+                                                @endif
+                                            </div>
+                                        @elseif($dayData['is_present'])
+                                            <div class="rounded-lg bg-emerald-50 px-1.5 py-1 text-[9px] leading-tight text-emerald-800 ring-1 ring-emerald-200 sm:px-2 sm:text-xs">
+                                                <span class="block truncate font-semibold">Hadir</span>
+                                                @if($dayData['shift'])
+                                                    <span class="mt-0.5 block text-[8px] font-medium text-emerald-700 sm:text-[10px]">{{ $dayData['shift']->name }}</span>
+                                                @endif
+                                                @if($dayData['attendance'] && $dayData['attendance']->check_in_time)
+                                                    <span class="mt-1 hidden truncate text-[10px] text-emerald-600 sm:block">Masuk {{ $dayData['attendance']->check_in_time->format('H:i') }}</span>
+                                                @endif
+                                            </div>
+                                        @elseif($dayData['is_holiday'])
                                             <div class="rounded-lg bg-amber-50 px-1.5 py-1 text-[9px] leading-tight text-amber-800 ring-1 ring-amber-100 sm:px-2 sm:text-xs">
                                                 <span class="block truncate font-semibold">Libur</span>
                                                 @if($dayData['holiday_type'] == 'approved')
@@ -179,7 +254,7 @@
                                                 @endif
                                             </div>
                                         @else
-                                            <div class="rounded-lg border border-dashed border-red-200 bg-red-50 px-1.5 py-1 text-center text-[9px] font-medium text-red-500 sm:px-2 sm:text-xs">
+                                            <div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-1.5 py-1 text-center text-[9px] font-medium text-gray-500 sm:px-2 sm:text-xs">
                                                 Kosong
                                             </div>
                                         @endif
@@ -202,7 +277,7 @@
             <div class="rounded-2xl border border-gray-100 bg-white p-4 text-sm text-gray-500 shadow-sm">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <span class="font-medium text-gray-700">{{ $stats['working_days'] ?? 0 }} hari kerja bulan ini</span>
-                    <span>{{ $stats['holidays'] ?? 0 }} libur owner/cuti, {{ $stats['weekends'] ?? 0 }} akhir pekan</span>
+                    <span>{{ $stats['present_days'] ?? 0 }} hadir, {{ $stats['late_days'] ?? 0 }} terlambat, {{ $stats['absent_days'] ?? 0 }} tidak hadir, {{ $stats['holidays'] ?? 0 }} libur owner/cuti</span>
                 </div>
             </div>
         </div>

@@ -150,6 +150,13 @@ class AttendanceController extends Controller
                               ->whereDate('date', today())
                               ->first();
 
+        if ($existing && $existing->status === 'absent') {
+            return response()->json([
+                'error' => 'Anda sudah melewati jam shift dan tercatat tidak hadir',
+                'status' => 'absent',
+            ], 400);
+        }
+
         if ($existing && $existing->check_in_time) {
             return response()->json(['error' => 'Anda sudah melakukan check in hari ini'], 400);
         }
@@ -179,24 +186,17 @@ class AttendanceController extends Controller
             ], 400);
         }
         
-        // Cek apakah masih dalam jam shift (maksimal 2 jam setelah shift berakhir)
+        // Cek apakah masih dalam jam shift
         $shiftEnd = $this->getShiftEndDateTime($now, $shift);
-        $maxCheckInTime = $shiftEnd->copy()->addHours(2);
         
-        if ($now->greaterThan($maxCheckInTime)) {
-            // Tandai sebagai tidak hadir
-            Attendance::create([
-                'employee_id' => $employee->id,
-                'shift_id' => $shift->id,
-                'date' => today(),
-                'status' => 'absent',
-                'notes' => 'Tidak hadir (melewati batas waktu check in)',
-            ]);
+        if ($now->greaterThan($shiftEnd)) {
+            $attendance = $this->markAbsentForMissedShift($employee, $shift, today());
             
             return response()->json([
-                'error' => 'Anda sudah melewati batas waktu check in',
+                'error' => 'Anda sudah melewati jam shift dan tercatat tidak hadir',
                 'status' => 'absent',
-                'max_check_in_time' => $maxCheckInTime->format('H:i'),
+                'attendance_id' => $attendance->id,
+                'shift_end_time' => $shiftEnd->format('H:i'),
             ], 400);
         }
 
@@ -364,15 +364,13 @@ class AttendanceController extends Controller
         $now = Carbon::now();
         $checkInWindow = $this->getCheckInWindow($now, $shift);
         
-        // Cek apakah sudah melewati batas waktu check in (2 jam setelah shift berakhir)
+        // Cek apakah sudah melewati jam shift
         $isPastCheckInTime = false;
-        $maxCheckInTime = null;
         $shiftEndTime = null;
         
         if ($shift && !$attendance) {
             $shiftEnd = $this->getShiftEndDateTime($now, $shift);
-            $maxCheckInTime = $shiftEnd->copy()->addHours(2);
-            $isPastCheckInTime = $now->greaterThan($maxCheckInTime);
+            $isPastCheckInTime = $now->greaterThan($shiftEnd);
             $shiftEndTime = $shiftEnd->format('H:i');
         }
 
@@ -410,14 +408,17 @@ class AttendanceController extends Controller
             }
 
             if ($isPastCheckInTime) {
+                $attendance = $this->markAbsentForMissedShift($employee, $shift, today());
+
                 return response()->json([
                     'checked_in' => false,
                     'checked_out' => false,
-                    'status' => 'past_check_in',
+                    'status' => 'absent',
                     'can_check_in' => false,
                     'is_past_check_in' => true,
-                    'max_check_in_time' => $maxCheckInTime->format('H:i'),
+                    'attendance_id' => $attendance->id,
                     'shift_end_time' => $shiftEndTime,
+                    'message' => 'Anda sudah melewati jam shift dan tercatat tidak hadir.',
                     'shift' => $shift ? [
                         'name' => $shift->name,
                         'start_time' => date('H:i', strtotime($shift->start_time)),
@@ -573,6 +574,21 @@ class AttendanceController extends Controller
             ->whereDate('date', Carbon::parse($date)->toDateString())
             ->whereIn('status', ['scheduled', 'taken'])
             ->first();
+    }
+
+    private function markAbsentForMissedShift(Employee $employee, Shift $shift, $date): Attendance
+    {
+        return Attendance::firstOrCreate(
+            [
+                'employee_id' => $employee->id,
+                'date' => Carbon::parse($date)->toDateString(),
+            ],
+            [
+                'shift_id' => $shift->id,
+                'status' => 'absent',
+                'notes' => 'Tidak hadir (melewati jam shift)',
+            ]
+        );
     }
 
     private function getCheckInWindow(Carbon $now, $shift)
