@@ -306,6 +306,38 @@
                                 <span class="text-sm font-medium text-orange-600">🤖 Ya</span>
                             </div>
                         @endif
+                        @if($attendance->gps_accuracy_in || $attendance->gps_accuracy_out)
+                            <div class="flex justify-between py-2 border-b border-gray-100">
+                                <span class="text-sm text-gray-500">Akurasi GPS</span>
+                                <span class="text-sm font-medium text-gray-800">
+                                    In: {{ $attendance->gps_accuracy_in ? $attendance->gps_accuracy_in . 'm' : '-' }}
+                                    / Out: {{ $attendance->gps_accuracy_out ? $attendance->gps_accuracy_out . 'm' : '-' }}
+                                </span>
+                            </div>
+                        @endif
+                        @if($attendance->device_fingerprint_in || $attendance->device_fingerprint_out)
+                            <div class="flex justify-between py-2 border-b border-gray-100">
+                                <span class="text-sm text-gray-500">Perangkat</span>
+                                <span class="text-sm font-medium {{ $attendance->device_fingerprint_out && $attendance->device_fingerprint_in !== $attendance->device_fingerprint_out ? 'text-red-600' : 'text-emerald-600' }}">
+                                    {{ $attendance->device_fingerprint_out && $attendance->device_fingerprint_in !== $attendance->device_fingerprint_out ? 'Berbeda' : 'Sama' }}
+                                </span>
+                            </div>
+                        @endif
+                        @if($attendance->client_time_offset_in !== null || $attendance->client_time_offset_out !== null)
+                            <div class="flex justify-between py-2 border-b border-gray-100">
+                                <span class="text-sm text-gray-500">Selisih Jam Device</span>
+                                <span class="text-sm font-medium text-gray-800">
+                                    In: {{ $attendance->client_time_offset_in !== null ? $attendance->client_time_offset_in . ' detik' : '-' }}
+                                    / Out: {{ $attendance->client_time_offset_out !== null ? $attendance->client_time_offset_out . ' detik' : '-' }}
+                                </span>
+                            </div>
+                        @endif
+                        @if(!empty($attendance->fraud_flags))
+                            <div class="flex justify-between py-2 border-b border-gray-100">
+                                <span class="text-sm text-gray-500">Flag Integritas</span>
+                                <span class="text-sm font-medium text-yellow-700">{{ implode(', ', $attendance->fraud_flags) }}</span>
+                            </div>
+                        @endif
                         <div class="flex justify-between py-2 border-b border-gray-100">
                             <span class="text-sm text-gray-500">Tanggal Dibuat</span>
                             <span class="text-sm font-medium text-gray-800">{{ $attendance->created_at->format('d F Y H:i') }}</span>

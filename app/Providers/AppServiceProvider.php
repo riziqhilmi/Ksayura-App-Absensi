@@ -14,9 +14,14 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Force HTTPS untuk semua asset
-        // if (app()->environment('production') || app()->environment('local')) {
-            // URL::forceScheme('https');
-        // }
+        // Force HTTPS jika request dari Cloudflare/proxy
+        if (
+            request()->server('HTTP_X_FORWARDED_PROTO') === 'https' ||
+            request()->header('X-Forwarded-Proto') === 'https' ||
+            str_contains(request()->header('Host', ''), 'trycloudflare.com') ||
+            str_contains(request()->header('Host', ''), 'ngrok')
+        ) {
+            URL::forceScheme('https');
+        }
     }
 }

@@ -215,10 +215,22 @@ class AttendanceController extends Controller
         $validator = Validator::make($request->all(), [
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
+            'accuracy' => 'required|numeric|min:0|max:75',
+            'location_recorded_at' => 'required|date',
+            'client_recorded_at' => 'required|date',
+            'timezone' => 'required|string|max:64',
+            'timezone_offset_minutes' => 'required|integer|between:-840,840',
+            'device_fingerprint' => 'required|string|size:64',
+            'is_mock_location' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $integrityCheck = $this->validateAttendanceIntegrity($request, $employee);
+        if ($integrityCheck) {
+            return $integrityCheck;
         }
 
         $isWithinRadius = CompanySetting::isWithinOfficeRadius(
@@ -252,6 +264,12 @@ class AttendanceController extends Controller
             'check_in_time' => $now,
             'latitude_in' => $request->latitude,
             'longitude_in' => $request->longitude,
+            'gps_accuracy_in' => (int) round($request->accuracy),
+            'location_recorded_at_in' => Carbon::parse($request->location_recorded_at),
+            'device_fingerprint_in' => $request->device_fingerprint,
+            'timezone_in' => $request->timezone,
+            'client_time_offset_in' => $this->getClientTimeOffset($request),
+            'fraud_flags' => $this->buildFraudFlags($request),
             'check_in_location' => $request->location_name ?? 'Check In',
             'status' => $status,
             'is_auto_checkout' => false,
@@ -291,10 +309,22 @@ class AttendanceController extends Controller
         $validator = Validator::make($request->all(), [
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
+            'accuracy' => 'required|numeric|min:0|max:75',
+            'location_recorded_at' => 'required|date',
+            'client_recorded_at' => 'required|date',
+            'timezone' => 'required|string|max:64',
+            'timezone_offset_minutes' => 'required|integer|between:-840,840',
+            'device_fingerprint' => 'required|string|size:64',
+            'is_mock_location' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $integrityCheck = $this->validateAttendanceIntegrity($request, $employee, $attendance);
+        if ($integrityCheck) {
+            return $integrityCheck;
         }
 
         $isWithinRadius = CompanySetting::isWithinOfficeRadius(
@@ -330,6 +360,15 @@ class AttendanceController extends Controller
             'check_out_time' => $checkOutTime,
             'latitude_out' => $request->latitude,
             'longitude_out' => $request->longitude,
+            'gps_accuracy_out' => (int) round($request->accuracy),
+            'location_recorded_at_out' => Carbon::parse($request->location_recorded_at),
+            'device_fingerprint_out' => $request->device_fingerprint,
+            'timezone_out' => $request->timezone,
+            'client_time_offset_out' => $this->getClientTimeOffset($request),
+            'fraud_flags' => array_values(array_unique(array_merge(
+                $attendance->fraud_flags ?? [],
+                $this->buildFraudFlags($request)
+            ))),
             'check_out_location' => $request->location_name ?? 'Check Out',
             'status' => $attendance->status,
         ]);
@@ -535,6 +574,96 @@ class AttendanceController extends Controller
         $hours = floor($minutes / 60);
         $mins = $minutes % 60;
         return $hours . ' jam ' . $mins . ' menit';
+    }
+
+    private function validateAttendanceIntegrity(Request $request, Employee $employee, ?Attendance $attendance = null)
+    {
+        $locationRecordedAt = Carbon::parse($request->location_recorded_at);
+        $clientRecordedAt = Carbon::parse($request->client_recorded_at);
+        $now = Carbon::now();
+        $clientOffsetSeconds = abs($clientRecordedAt->diffInSeconds($now, false));
+
+        if ($request->boolean('is_mock_location')) {
+            return response()->json([
+                'error' => 'Absensi ditolak karena perangkat mengirim indikasi mock location.',
+                'fraud_code' => 'mock_location',
+            ], 400);
+        }
+
+        if ($locationRecordedAt->diffInSeconds($now, true) > 120) {
+            return response()->json([
+                'error' => 'Data lokasi sudah terlalu lama. Mohon aktifkan GPS lalu coba lagi.',
+                'fraud_code' => 'stale_location',
+            ], 400);
+        }
+
+        if ($clientOffsetSeconds > 300) {
+            return response()->json([
+                'error' => 'Jam perangkat tidak sesuai dengan server. Aktifkan tanggal & waktu otomatis lalu coba lagi.',
+                'fraud_code' => 'device_time_mismatch',
+            ], 400);
+        }
+
+        if (!in_array($request->timezone, $this->allowedAttendanceTimezones(), true)) {
+            return response()->json([
+                'error' => 'Zona waktu perangkat tidak sesuai area operasional absensi.',
+                'fraud_code' => 'timezone_mismatch',
+            ], 400);
+        }
+
+        if ($attendance && $attendance->device_fingerprint_in && $attendance->device_fingerprint_in !== $request->device_fingerprint) {
+            return response()->json([
+                'error' => 'Check out harus dilakukan dari perangkat yang sama dengan check in.',
+                'fraud_code' => 'device_changed',
+            ], 400);
+        }
+
+        $sameDeviceUsedByOtherEmployee = Attendance::whereDate('date', today())
+            ->where('employee_id', '!=', $employee->id)
+            ->where(function ($query) use ($request) {
+                $query->where('device_fingerprint_in', $request->device_fingerprint)
+                    ->orWhere('device_fingerprint_out', $request->device_fingerprint);
+            })
+            ->exists();
+
+        if ($sameDeviceUsedByOtherEmployee) {
+            return response()->json([
+                'error' => 'Perangkat ini sudah digunakan untuk absensi akun lain hari ini.',
+                'fraud_code' => 'shared_device',
+            ], 400);
+        }
+
+        return null;
+    }
+
+    private function allowedAttendanceTimezones(): array
+    {
+        return [
+            'Asia/Jakarta',
+            'Asia/Bangkok',
+            'Asia/Makassar',
+            'Asia/Jayapura',
+        ];
+    }
+
+    private function getClientTimeOffset(Request $request): int
+    {
+        return Carbon::parse($request->client_recorded_at)->diffInSeconds(Carbon::now(), false);
+    }
+
+    private function buildFraudFlags(Request $request): array
+    {
+        $flags = [];
+
+        if ((float) $request->accuracy > 50) {
+            $flags[] = 'low_gps_accuracy';
+        }
+
+        if (abs($this->getClientTimeOffset($request)) > 120) {
+            $flags[] = 'client_time_offset';
+        }
+
+        return $flags;
     }
 
     private function getEmployeeShiftForDate(Employee $employee, $date)

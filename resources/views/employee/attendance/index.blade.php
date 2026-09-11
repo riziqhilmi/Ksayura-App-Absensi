@@ -348,6 +348,7 @@
         let todayStatus = {};
         let locationPermissionGranted = false;
         let lastLocation = null;
+        let deviceFingerprintPromise = null;
 
         // Show location on Google Maps
         function showLocation(lat, lng) {
@@ -357,6 +358,64 @@
         // Check if geolocation is available
         function isGeolocationAvailable() {
             return 'geolocation' in navigator;
+        }
+
+        function getStableDeviceId() {
+            const key = 'ksayura_attendance_device_id';
+            let deviceId = localStorage.getItem(key);
+
+            if (!deviceId) {
+                deviceId = (crypto.randomUUID && crypto.randomUUID()) ||
+                    `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+                localStorage.setItem(key, deviceId);
+            }
+
+            return deviceId;
+        }
+
+        async function getDeviceFingerprint() {
+            if (deviceFingerprintPromise) {
+                return deviceFingerprintPromise;
+            }
+
+            deviceFingerprintPromise = (async () => {
+                const rawFingerprint = [
+                    getStableDeviceId(),
+                    navigator.userAgent || '',
+                    navigator.platform || '',
+                    navigator.language || '',
+                    screen.width,
+                    screen.height,
+                    screen.colorDepth,
+                    new Date().getTimezoneOffset()
+                ].join('|');
+
+                if (!crypto.subtle) {
+                    return rawFingerprint.padEnd(64, '0').slice(0, 64);
+                }
+
+                const data = new TextEncoder().encode(rawFingerprint);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                return Array.from(new Uint8Array(hashBuffer))
+                    .map(byte => byte.toString(16).padStart(2, '0'))
+                    .join('');
+            })();
+
+            return deviceFingerprintPromise;
+        }
+
+        async function buildAttendancePayload(position) {
+            return {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: Math.round(position.coords.accuracy || 999),
+                location_recorded_at: new Date(position.timestamp).toISOString(),
+                client_recorded_at: new Date().toISOString(),
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown',
+                timezone_offset_minutes: new Date().getTimezoneOffset(),
+                device_fingerprint: await getDeviceFingerprint(),
+                is_mock_location: false
+            };
         }
 
         // Request location permission
@@ -383,11 +442,13 @@
                     locationPermissionGranted = true;
                     lastLocation = {
                         latitude: position.coords.latitude,
-                        longitude: position.coords.longitude
+                        longitude: position.coords.longitude,
+                        accuracy: Math.round(position.coords.accuracy || 999),
+                        recorded_at: new Date(position.timestamp).toISOString()
                     };
                     
                     statusText.textContent = '✅ Lokasi aktif';
-                    detailText.textContent = `Latitude: ${position.coords.latitude.toFixed(6)}, Longitude: ${position.coords.longitude.toFixed(6)}`;
+                    detailText.textContent = `Latitude: ${position.coords.latitude.toFixed(6)}, Longitude: ${position.coords.longitude.toFixed(6)} | Akurasi ${lastLocation.accuracy}m`;
                     icon.className = 'w-10 h-10 rounded-full bg-green-100 flex items-center justify-center';
                     banner.className = 'mb-6 p-4 rounded-xl bg-green-50 border border-green-200';
                     
@@ -484,10 +545,7 @@
                 }
 
                 navigator.geolocation.getCurrentPosition(
-                    position => resolve({
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude
-                    }),
+                    position => buildAttendancePayload(position).then(resolve).catch(reject),
                     error => reject('Gagal mendapatkan lokasi: ' + error.message),
                     {
                         enableHighAccuracy: true,

@@ -21,14 +21,32 @@ class Attendance extends Model
         'longitude_in',
         'latitude_out',
         'longitude_out',
+        'gps_accuracy_in',
+        'gps_accuracy_out',
+        'location_recorded_at_in',
+        'location_recorded_at_out',
+        'device_fingerprint_in',
+        'device_fingerprint_out',
+        'timezone_in',
+        'timezone_out',
+        'client_time_offset_in',
+        'client_time_offset_out',
+        'fraud_flags',
         'status',
         'notes',
+        'is_auto_checkout',
+        'auto_checkout_at',
     ];
 
     protected $casts = [
         'date' => 'date',
         'check_in_time' => 'datetime',
         'check_out_time' => 'datetime',
+        'location_recorded_at_in' => 'datetime',
+        'location_recorded_at_out' => 'datetime',
+        'fraud_flags' => 'array',
+        'is_auto_checkout' => 'boolean',
+        'auto_checkout_at' => 'datetime',
     ];
 
     public function employee()
