@@ -15,6 +15,22 @@ $app = new Illuminate\Foundation\Application(
     $_ENV['APP_BASE_PATH'] ?? dirname(__DIR__)
 );
 
+if (!class_exists(\Inertia\ServiceProvider::class) && is_dir($app->basePath('vendor/inertiajs/inertia-laravel/src'))) {
+    spl_autoload_register(function ($class) use ($app) {
+        if (!str_starts_with($class, 'Inertia\\')) {
+            return;
+        }
+
+        $path = $app->basePath('vendor/inertiajs/inertia-laravel/src/')
+            . str_replace('\\', '/', substr($class, strlen('Inertia\\')))
+            . '.php';
+
+        if (is_file($path)) {
+            require $path;
+        }
+    });
+}
+
 /*
 |--------------------------------------------------------------------------
 | Bind Important Interfaces

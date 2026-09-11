@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
 
 class SalaryController extends Controller
 {
@@ -35,7 +36,7 @@ class SalaryController extends Controller
             $query->where('status', $request->status);
         }
 
-        $salaries = $query->latest()->paginate(20);
+        $salaries = $query->latest()->paginate(20)->withQueryString();
         $employees = Employee::with('user')->where('status', 'active')->get();
         
         // Stats
@@ -47,7 +48,31 @@ class SalaryController extends Controller
             'total_amount' => Salary::where('period', now()->format('Y-m'))->where('status', 'paid')->sum('total_salary'),
         ];
 
-        return view('owner.salaries.index', compact('salaries', 'employees', 'stats'));
+        return Inertia::render('Owner/Salaries/Index', [
+            'salaries' => $salaries->through(fn (Salary $salary) => $this->salaryPayload($salary)),
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeeOption($employee))->values(),
+            'stats' => $stats,
+            'filters' => [
+                'period' => $request->input('period', now()->format('Y-m')),
+                'employee' => $request->input('employee', ''),
+                'status' => $request->input('status', ''),
+            ],
+            'options' => [
+                'periods' => collect(range(0, 11))->map(function ($offset) {
+                    $date = now()->subMonths($offset);
+
+                    return [
+                        'value' => $date->format('Y-m'),
+                        'label' => $date->format('F Y'),
+                    ];
+                })->values(),
+            ],
+            'links' => [
+                'index' => route('owner.salaries.index'),
+                'calculate' => route('owner.salaries.calculate'),
+                'export' => route('owner.salaries.export'),
+            ],
+        ]);
     }
 
     // Owner: Calculate salary for a period
@@ -178,7 +203,12 @@ class SalaryController extends Controller
     public function show(Salary $salary)
     {
         $salary->load(['employee.user']);
-        return view('owner.salaries.show', compact('salary'));
+        return Inertia::render('Owner/Salaries/Show', [
+            'salary' => $this->salaryPayload($salary),
+            'links' => [
+                'index' => route('owner.salaries.index'),
+            ],
+        ]);
     }
 
     // Owner: Edit salary
@@ -190,7 +220,13 @@ class SalaryController extends Controller
         }
 
         $salary->load(['employee.user']);
-        return view('owner.salaries.edit', compact('salary'));
+        return Inertia::render('Owner/Salaries/Edit', [
+            'salary' => $this->salaryPayload($salary),
+            'links' => [
+                'show' => route('owner.salaries.show', $salary),
+                'update' => route('owner.salaries.update', $salary),
+            ],
+        ]);
     }
 
     // Owner: Update salary manually
@@ -266,16 +302,94 @@ class SalaryController extends Controller
             $query->where('period', $request->period);
         }
 
-        $salaries = $query->latest()->paginate(20);
+        $statsQuery = clone $query;
+        $salaries = $query->latest()->paginate(20)->withQueryString();
         
         // Stats
         $stats = [
-            'total' => $query->count(),
-            'paid' => $query->where('status', 'paid')->sum('total_salary'),
-            'average' => $query->where('status', 'paid')->avg('total_salary') ?? 0,
+            'total' => (clone $statsQuery)->count(),
+            'paid' => (clone $statsQuery)->where('status', 'paid')->sum('total_salary'),
+            'average' => (clone $statsQuery)->where('status', 'paid')->avg('total_salary') ?? 0,
         ];
 
-        return view('employee.salaries.index', compact('salaries', 'stats'));
+        return Inertia::render('Employee/Salaries/Index', [
+            'salaries' => $salaries->through(fn (Salary $salary) => $this->salaryPayload($salary)),
+            'stats' => $stats,
+            'filters' => [
+                'period' => $request->input('period', ''),
+            ],
+            'options' => [
+                'periods' => collect(range(0, 11))->map(function ($offset) {
+                    $date = now()->subMonths($offset);
+
+                    return [
+                        'value' => $date->format('Y-m'),
+                        'label' => $date->format('F Y'),
+                    ];
+                })->values(),
+            ],
+            'links' => [
+                'index' => route('employee.salaries.my'),
+            ],
+        ]);
+    }
+
+    private function salaryPayload(Salary $salary): array
+    {
+        $paidDays = (float) ($salary->paid_days ?? ($salary->present_days + $salary->late_days));
+        $dailyRate = (float) ($salary->daily_rate ?? $salary->employee?->daily_rate ?? 0);
+        $attendancePercentage = $salary->working_days > 0
+            ? round(($paidDays / $salary->working_days) * 100)
+            : 0;
+
+        return [
+            'id' => $salary->id,
+            'period' => $salary->period,
+            'start_date' => optional($salary->start_date)->format('Y-m-d'),
+            'start_date_label' => optional($salary->start_date)->format('d F Y'),
+            'end_date' => optional($salary->end_date)->format('Y-m-d'),
+            'end_date_label' => optional($salary->end_date)->format('d F Y'),
+            'employee' => $salary->employee ? $this->employeeOption($salary->employee) : null,
+            'daily_rate' => $dailyRate,
+            'paid_days' => $paidDays,
+            'base_salary' => (float) $salary->base_salary,
+            'overtime_hours' => (float) $salary->overtime_hours,
+            'overtime_pay' => (float) $salary->overtime_pay,
+            'attendance_bonus' => (float) $salary->attendance_bonus,
+            'performance_bonus' => (float) $salary->performance_bonus,
+            'deductions' => (float) $salary->deductions,
+            'total_salary' => (float) $salary->total_salary,
+            'working_days' => (int) $salary->working_days,
+            'present_days' => (int) $salary->present_days,
+            'late_days' => (int) $salary->late_days,
+            'absent_days' => (int) $salary->absent_days,
+            'leave_days' => (int) $salary->leave_days,
+            'holiday_days' => (int) ($salary->holiday_days ?? 0),
+            'attendance_percentage' => $attendancePercentage,
+            'status' => $salary->status,
+            'paid_date' => optional($salary->paid_date)->format('d F Y H:i'),
+            'notes' => $salary->notes,
+            'urls' => [
+                'show' => route('owner.salaries.show', $salary),
+                'edit' => route('owner.salaries.edit', $salary),
+                'update' => route('owner.salaries.update', $salary),
+                'mark_paid' => route('owner.salaries.mark-paid', $salary),
+                'destroy' => route('owner.salaries.destroy', $salary),
+            ],
+        ];
+    }
+
+    private function employeeOption(Employee $employee): array
+    {
+        return [
+            'id' => $employee->id,
+            'employee_code' => $employee->employee_code,
+            'name' => $employee->user?->name,
+            'email' => $employee->user?->email,
+            'position' => $employee->position,
+            'status' => $employee->status,
+            'daily_rate' => (float) ($employee->daily_rate ?? 0),
+        ];
     }
 
     // Employee: View salary detail
@@ -288,6 +402,11 @@ class SalaryController extends Controller
         }
 
         $salary->load(['employee.user']);
-        return view('employee.salaries.show', compact('salary'));
+        return Inertia::render('Employee/Salaries/Show', [
+            'salary' => $this->salaryPayload($salary),
+            'links' => [
+                'index' => route('employee.salaries.my'),
+            ],
+        ]);
     }
 }

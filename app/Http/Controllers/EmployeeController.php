@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
+use Inertia\Inertia;
 
 class EmployeeController extends Controller
 {
@@ -22,12 +24,29 @@ class EmployeeController extends Controller
         $totalEmployees = $employees->count();
         $activeEmployees = $employees->where('status', 'active')->count();
         
-        return view('owner.employees.index', compact('employees', 'totalEmployees', 'activeEmployees'));
+        return Inertia::render('Owner/Employees/Index', [
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeePayload($employee))->values(),
+            'stats' => [
+                'total' => $totalEmployees,
+                'active' => $activeEmployees,
+                'average_daily_rate' => round((float) ($employees->avg('daily_rate') ?? 0)),
+            ],
+            'links' => [
+                'create' => route('owner.employees.create'),
+            ],
+        ]);
     }
 
     public function create()
     {
-        return view('owner.employees.create');
+        return Inertia::render('Owner/Employees/Form', [
+            'mode' => 'create',
+            'employee' => null,
+            'links' => [
+                'index' => route('owner.employees.index'),
+                'submit' => route('owner.employees.store'),
+            ],
+        ]);
     }
 
     public function store(Request $request)
@@ -77,13 +96,26 @@ class EmployeeController extends Controller
     public function show(Employee $employee)
     {
         $employee->load('user');
-        return view('owner.employees.show', compact('employee'));
+        return Inertia::render('Owner/Employees/Show', [
+            'employee' => $this->employeePayload($employee),
+            'links' => [
+                'index' => route('owner.employees.index'),
+                'edit' => route('owner.employees.edit', $employee),
+            ],
+        ]);
     }
 
     public function edit(Employee $employee)
     {
         $employee->load('user');
-        return view('owner.employees.edit', compact('employee'));
+        return Inertia::render('Owner/Employees/Form', [
+            'mode' => 'edit',
+            'employee' => $this->employeePayload($employee),
+            'links' => [
+                'index' => route('owner.employees.index'),
+                'submit' => route('owner.employees.update', $employee),
+            ],
+        ]);
     }
 
     public function update(Request $request, Employee $employee)
@@ -166,5 +198,41 @@ class EmployeeController extends Controller
             'success' => true,
             'message' => 'Password berhasil direset'
         ]);
+    }
+
+    private function employeePayload(Employee $employee): array
+    {
+        $todayAttendance = $employee->attendances?->first();
+
+        return [
+            'id' => $employee->id,
+            'employee_code' => $employee->employee_code,
+            'position' => $employee->position,
+            'daily_rate' => $employee->daily_rate,
+            'hourly_rate' => $employee->hourly_rate,
+            'status' => $employee->status,
+            'user' => [
+                'id' => $employee->user?->id,
+                'name' => $employee->user?->name,
+                'email' => $employee->user?->email,
+                'phone' => $employee->user?->phone,
+                'address' => $employee->user?->address,
+                'hire_date' => $employee->user?->hire_date ? Carbon::parse($employee->user->hire_date)->format('Y-m-d') : null,
+                'hire_date_label' => $employee->user?->hire_date ? Carbon::parse($employee->user->hire_date)->format('d F Y') : '-',
+            ],
+            'today_attendance' => $todayAttendance ? [
+                'status' => $todayAttendance->status,
+                'check_in_time' => optional($todayAttendance->check_in_time)->format('H:i'),
+                'check_out_time' => optional($todayAttendance->check_out_time)->format('H:i'),
+            ] : null,
+            'urls' => [
+                'show' => route('owner.employees.show', $employee),
+                'edit' => route('owner.employees.edit', $employee),
+                'calendar' => route('owner.employees.calendar', $employee),
+                'destroy' => route('owner.employees.destroy', $employee),
+                'update_status' => route('owner.employees.update-status', $employee),
+                'reset_password' => route('owner.employees.reset-password', $employee),
+            ],
+        ];
     }
 }

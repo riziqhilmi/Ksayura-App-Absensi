@@ -8,12 +8,13 @@ use App\Models\LeaveRequest;
 use App\Models\Salary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
 class EmployeeDashboardController extends Controller
 {
     public function index()
     {
-        $employee = Employee::where('user_id', Auth::id())->first();
+        $employee = Employee::with('user')->where('user_id', Auth::id())->first();
         
         if (!$employee) {
             return redirect()->back()->with('error', 'Data karyawan tidak ditemukan');
@@ -110,14 +111,19 @@ class EmployeeDashboardController extends Controller
         });
         $recentActivities = array_slice($recentActivities, 0, 10);
 
-        return view('employee.dashboard', compact(
-            'employee', 
-            'todayAttendance', 
-            'stats', 
-            'pendingLeaves', 
-            'latestSalary',
-            'recentActivities'
-        ));
+        return Inertia::render('Employee/Dashboard', [
+            'employee' => $employee,
+            'todayAttendance' => $todayAttendance,
+            'stats' => $stats,
+            'pendingLeaves' => $pendingLeaves,
+            'latestSalary' => $latestSalary,
+            'recentActivities' => $recentActivities,
+            'quickLinks' => [
+                'attendance' => route('employee.attendance.my'),
+                'leaveCreate' => route('employee.leaves.create'),
+                'calendar' => route('employee.calendar.index'),
+            ],
+        ]);
     }
 
     private function getStatusIcon($status)

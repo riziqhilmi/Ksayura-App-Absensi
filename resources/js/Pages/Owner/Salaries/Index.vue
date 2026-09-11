@@ -1,0 +1,194 @@
+<script setup>
+import { reactive, ref } from 'vue';
+import { Head, Link, router } from '@inertiajs/vue3';
+import AppShell from '../../../Components/AppShell.vue';
+import Card from '../../../Components/Card.vue';
+import ConfirmDialog from '../../../Components/ConfirmDialog.vue';
+import Pagination from '../../../Components/Pagination.vue';
+
+const props = defineProps({
+    salaries: { type: Object, required: true },
+    employees: { type: Array, default: () => [] },
+    stats: { type: Object, required: true },
+    filters: { type: Object, required: true },
+    options: { type: Object, required: true },
+    links: { type: Object, required: true },
+});
+
+const filters = reactive({
+    period: props.filters.period || '',
+    employee: props.filters.employee || '',
+    status: props.filters.status || '',
+});
+const calculate = reactive({ period: props.filters.period || new Date().toISOString().slice(0, 7), employee_id: '' });
+const confirmState = ref({ show: false, title: '', message: '', action: null, confirmText: 'Lanjutkan' });
+const loadingPaid = ref(null);
+
+const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+const formatCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
+const statusLabels = { draft: 'Draft', calculated: 'Siap Dibayar', paid: 'Sudah Dibayar' };
+const statusClass = (status) => ({
+    draft: 'bg-slate-100 text-slate-700 ring-slate-200',
+    calculated: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    paid: 'bg-blue-50 text-blue-700 ring-blue-200',
+}[status] || 'bg-slate-100 text-slate-700 ring-slate-200');
+
+const applyFilter = () => router.get(props.links.index, filters, { preserveState: true, replace: true });
+const runCalculate = () => router.get(props.links.calculate, calculate);
+const askDelete = (salary) => {
+    confirmState.value = {
+        show: true,
+        title: 'Hapus Data Gaji',
+        message: `Hapus data gaji ${salary.employee?.name || '-'} periode ${salary.period}?`,
+        confirmText: 'Hapus',
+        action: () => router.delete(salary.urls.destroy, { preserveScroll: true }),
+    };
+};
+const askMarkPaid = (salary) => {
+    confirmState.value = {
+        show: true,
+        title: 'Tandai Dibayar',
+        message: `Tandai gaji ${salary.employee?.name || '-'} periode ${salary.period} sebagai sudah dibayar?`,
+        confirmText: 'Tandai Dibayar',
+        action: () => markPaid(salary),
+    };
+};
+const runConfirmed = () => {
+    const action = confirmState.value.action;
+    confirmState.value.show = false;
+    if (action) action();
+};
+const markPaid = async (salary) => {
+    loadingPaid.value = salary.id;
+    const response = await fetch(salary.urls.mark_paid, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+    });
+    loadingPaid.value = null;
+    if (response.ok) router.reload({ preserveScroll: true });
+};
+</script>
+
+<template>
+    <Head title="Manajemen Gaji" />
+
+    <AppShell>
+        <div class="mx-auto max-w-7xl space-y-6">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-emerald-700">Owner</p>
+                    <h1 class="text-2xl font-bold text-slate-950">Manajemen Gaji</h1>
+                    <p class="mt-1 text-sm text-slate-500">Hitung, tinjau, edit, dan tandai pembayaran gaji karyawan.</p>
+                </div>
+                <form class="flex flex-col gap-2 sm:flex-row" @submit.prevent="runCalculate">
+                    <input v-model="calculate.period" type="month" class="rounded-lg border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-emerald-500 focus:ring-emerald-100">
+                    <select v-model="calculate.employee_id" class="rounded-lg border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-emerald-500 focus:ring-emerald-100">
+                        <option value="">Semua Karyawan</option>
+                        <option v-for="employee in employees" :key="employee.id" :value="employee.id">{{ employee.name }}</option>
+                    </select>
+                    <button class="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">Hitung Gaji</button>
+                </form>
+            </div>
+
+            <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Card><p class="text-sm text-slate-500">Total Gaji Dibayar</p><p class="mt-2 text-2xl font-bold">{{ formatCurrency(stats.total_amount) }}</p></Card>
+                <Card><p class="text-sm text-slate-500">Draft</p><p class="mt-2 text-3xl font-bold">{{ stats.draft || 0 }}</p></Card>
+                <Card><p class="text-sm text-slate-500">Siap Dibayar</p><p class="mt-2 text-3xl font-bold text-emerald-600">{{ stats.calculated || 0 }}</p></Card>
+                <Card><p class="text-sm text-slate-500">Sudah Dibayar</p><p class="mt-2 text-3xl font-bold text-blue-600">{{ stats.paid || 0 }}</p></Card>
+            </section>
+
+            <Card>
+                <form class="grid grid-cols-1 gap-3 md:grid-cols-4" @submit.prevent="applyFilter">
+                    <select v-model="filters.period" class="rounded-lg border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white focus:ring-emerald-100">
+                        <option value="">Semua Periode</option>
+                        <option v-for="period in options.periods" :key="period.value" :value="period.value">{{ period.label }}</option>
+                    </select>
+                    <select v-model="filters.employee" class="rounded-lg border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white focus:ring-emerald-100">
+                        <option value="">Semua Karyawan</option>
+                        <option v-for="employee in employees" :key="employee.id" :value="employee.id">{{ employee.name }}</option>
+                    </select>
+                    <select v-model="filters.status" class="rounded-lg border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white focus:ring-emerald-100">
+                        <option value="">Semua Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="calculated">Siap Dibayar</option>
+                        <option value="paid">Sudah Dibayar</option>
+                    </select>
+                    <button class="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">Filter</button>
+                </form>
+            </Card>
+
+            <Card>
+                <div class="hidden overflow-hidden rounded-lg border border-slate-200 md:block">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Periode</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Karyawan</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Hari Dibayar</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Gaji Harian</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Total</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Status</th>
+                                <th class="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr v-for="salary in salaries.data" :key="salary.id" class="hover:bg-slate-50">
+                                <td class="px-4 py-3"><span class="rounded-md bg-blue-50 px-2.5 py-1 font-mono text-xs font-semibold text-blue-700">{{ salary.period }}</span></td>
+                                <td class="px-4 py-3 text-sm font-semibold">{{ salary.employee?.name || '-' }}</td>
+                                <td class="px-4 py-3 text-sm">{{ salary.paid_days }} hari</td>
+                                <td class="px-4 py-3 text-sm">{{ formatCurrency(salary.daily_rate) }}</td>
+                                <td class="px-4 py-3 text-sm font-bold text-emerald-700">{{ formatCurrency(salary.total_salary) }}</td>
+                                <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1" :class="statusClass(salary.status)">{{ statusLabels[salary.status] || salary.status }}</span></td>
+                                <td class="px-4 py-3">
+                                    <div class="flex justify-end gap-1">
+                                        <Link :href="salary.urls.show" class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Detail</Link>
+                                        <Link v-if="salary.status !== 'paid'" :href="salary.urls.edit" class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Edit</Link>
+                                        <button v-if="salary.status === 'calculated'" type="button" class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60" :disabled="loadingPaid === salary.id" @click="askMarkPaid(salary)">Bayar</button>
+                                        <button v-if="salary.status === 'draft'" type="button" class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" @click="askDelete(salary)">Hapus</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="salaries.data.length === 0">
+                                <td colspan="7" class="px-4 py-10 text-center text-sm text-slate-400">Belum ada data gaji</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="space-y-3 md:hidden">
+                    <article v-for="salary in salaries.data" :key="salary.id" class="rounded-lg border border-slate-200 p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="font-bold">{{ salary.employee?.name || '-' }}</p>
+                                <p class="text-sm text-slate-500">{{ salary.period }}</p>
+                            </div>
+                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1" :class="statusClass(salary.status)">{{ statusLabels[salary.status] || salary.status }}</span>
+                        </div>
+                        <div class="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-sm">
+                            <p><span class="block text-xs text-slate-400">Hari Dibayar</span><b>{{ salary.paid_days }} hari</b></p>
+                            <p><span class="block text-xs text-slate-400">Gaji Harian</span><b>{{ formatCurrency(salary.daily_rate) }}</b></p>
+                            <p class="col-span-2"><span class="block text-xs text-slate-400">Total</span><b class="text-emerald-700">{{ formatCurrency(salary.total_salary) }}</b></p>
+                        </div>
+                        <div class="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+                            <Link :href="salary.urls.show" class="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">Detail</Link>
+                            <Link v-if="salary.status !== 'paid'" :href="salary.urls.edit" class="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">Edit</Link>
+                        </div>
+                    </article>
+                </div>
+
+                <div class="mt-5">
+                    <Pagination :links="salaries.links" />
+                </div>
+            </Card>
+        </div>
+
+        <ConfirmDialog
+            :show="confirmState.show"
+            :title="confirmState.title"
+            :message="confirmState.message"
+            :confirm-text="confirmState.confirmText"
+            @cancel="confirmState.show = false"
+            @confirm="runConfirmed"
+        />
+    </AppShell>
+</template>

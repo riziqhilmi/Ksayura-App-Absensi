@@ -8,6 +8,7 @@ use App\Models\LeaveRequest;
 use App\Models\Salary;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class OwnerDashboardController extends Controller
 {
@@ -143,6 +144,9 @@ class OwnerDashboardController extends Controller
             'monthly_attendance' => $monthlyStats,
         ];
 
-        return view('owner.dashboard', compact('stats', 'recentActivities'));
+        return Inertia::render('Owner/Dashboard', [
+            'stats' => $stats,
+            'recentActivities' => $recentActivities,
+        ]);
     }
 }

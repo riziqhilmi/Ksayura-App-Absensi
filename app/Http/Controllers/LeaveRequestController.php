@@ -7,6 +7,7 @@ use App\Models\LeaveRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
 
 class LeaveRequestController extends Controller
 {
@@ -38,7 +39,7 @@ class LeaveRequestController extends Controller
             $query->whereDate('end_date', '<=', $request->end_date);
         }
 
-        $leaveRequests = $query->latest()->paginate(20);
+        $leaveRequests = $query->latest()->paginate(20)->withQueryString();
         $employees = Employee::with('user')->where('status', 'active')->get();
         
         // Stats
@@ -49,7 +50,20 @@ class LeaveRequestController extends Controller
             'total' => LeaveRequest::count(),
         ];
 
-        return view('owner.leaves.index', compact('leaveRequests', 'employees', 'stats'));
+        return Inertia::render('Owner/Leaves/Index', [
+            'leaveRequests' => $leaveRequests->through(fn (LeaveRequest $leave) => $this->leavePayload($leave)),
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeeOption($employee))->values(),
+            'stats' => $stats,
+            'filters' => [
+                'status' => $request->input('status', ''),
+                'employee' => $request->input('employee', ''),
+                'start_date' => $request->input('start_date', ''),
+                'end_date' => $request->input('end_date', ''),
+            ],
+            'links' => [
+                'index' => route('owner.leaves.index'),
+            ],
+        ]);
     }
 
     /**
@@ -58,7 +72,12 @@ class LeaveRequestController extends Controller
     public function show(LeaveRequest $leave)
     {
         $leave->load(['employee.user', 'approver']);
-        return view('owner.leaves.show', compact('leave'));
+        return Inertia::render('Owner/Leaves/Show', [
+            'leave' => $this->leavePayload($leave),
+            'links' => [
+                'index' => route('owner.leaves.index'),
+            ],
+        ]);
     }
 
     /**
@@ -161,6 +180,75 @@ class LeaveRequestController extends Controller
         return response()->json($leaves);
     }
 
+    private function leavePayload(LeaveRequest $leave): array
+    {
+        $duration = $leave->start_date && $leave->end_date
+            ? $leave->start_date->diffInDays($leave->end_date) + 1
+            : 0;
+
+        return [
+            'id' => $leave->id,
+            'employee' => $leave->employee ? $this->employeeOption($leave->employee) : null,
+            'leave_type' => $leave->leave_type,
+            'leave_type_label' => $this->leaveTypeLabel($leave->leave_type),
+            'start_date' => optional($leave->start_date)->format('Y-m-d'),
+            'start_date_label' => optional($leave->start_date)->format('d/m/Y'),
+            'start_date_long' => optional($leave->start_date)->format('d F Y'),
+            'end_date' => optional($leave->end_date)->format('Y-m-d'),
+            'end_date_label' => optional($leave->end_date)->format('d/m/Y'),
+            'end_date_long' => optional($leave->end_date)->format('d F Y'),
+            'duration_days' => $duration,
+            'reason' => $leave->reason,
+            'status' => $leave->status,
+            'approved_by' => $leave->approver?->name,
+            'approved_at' => optional($leave->approved_at)->format('d F Y H:i'),
+            'rejection_reason' => $leave->rejection_reason,
+            'created_at' => optional($leave->created_at)->format('d/m/Y H:i'),
+            'created_at_long' => optional($leave->created_at)->format('d F Y H:i'),
+            'urls' => [
+                'show' => route('owner.leaves.show', $leave),
+                'approve' => route('owner.leaves.approve', $leave),
+                'reject' => route('owner.leaves.reject', $leave),
+            ],
+        ];
+    }
+
+    private function employeeOption(Employee $employee): array
+    {
+        return [
+            'id' => $employee->id,
+            'employee_code' => $employee->employee_code,
+            'name' => $employee->user?->name,
+            'email' => $employee->user?->email,
+            'position' => $employee->position,
+            'status' => $employee->status,
+        ];
+    }
+
+    private function leaveTypeLabel(?string $type): string
+    {
+        return [
+            'annual' => 'Cuti Tahunan',
+            'sick' => 'Sakit',
+            'personal' => 'Keperluan Pribadi',
+            'maternity' => 'Melahirkan',
+            'other' => 'Lainnya',
+        ][$type] ?? ucfirst((string) $type);
+    }
+
+    private function leaveOptions(): array
+    {
+        return [
+            'types' => [
+                ['value' => 'annual', 'label' => 'Cuti Tahunan'],
+                ['value' => 'sick', 'label' => 'Sakit'],
+                ['value' => 'personal', 'label' => 'Keperluan Pribadi'],
+                ['value' => 'maternity', 'label' => 'Melahirkan'],
+                ['value' => 'other', 'label' => 'Lainnya'],
+            ],
+        ];
+    }
+
     // ==================== EMPLOYEE METHODS ====================
 
     /**
@@ -190,7 +278,7 @@ class LeaveRequestController extends Controller
             $query->whereDate('end_date', '<=', $request->end_date);
         }
 
-        $leaves = $query->latest()->paginate(10);
+        $leaves = $query->latest()->paginate(10)->withQueryString();
         
         $stats = [
             'pending' => LeaveRequest::where('employee_id', $employee->id)->where('status', 'pending')->count(),
@@ -199,7 +287,19 @@ class LeaveRequestController extends Controller
             'total' => LeaveRequest::where('employee_id', $employee->id)->count(),
         ];
 
-        return view('employee.leaves.index', compact('leaves', 'stats'));
+        return Inertia::render('Employee/Leaves/Index', [
+            'leaves' => $leaves->through(fn (LeaveRequest $leave) => $this->leavePayload($leave)),
+            'stats' => $stats,
+            'filters' => [
+                'status' => $request->input('status', ''),
+                'start_date' => $request->input('start_date', ''),
+                'end_date' => $request->input('end_date', ''),
+            ],
+            'links' => [
+                'index' => route('employee.leaves.my'),
+                'create' => route('employee.leaves.create'),
+            ],
+        ]);
     }
 
     /**
@@ -218,7 +318,19 @@ class LeaveRequestController extends Controller
             ->where('status', 'pending')
             ->count();
 
-        return view('employee.leaves.create', compact('pendingCount'));
+        return Inertia::render('Employee/Leaves/Create', [
+            'pendingCount' => $pendingCount,
+            'options' => $this->leaveOptions(),
+            'links' => [
+                'index' => route('employee.leaves.my'),
+                'store' => route('employee.leaves.store'),
+                'checkAvailability' => route('employee.leaves.check-availability'),
+            ],
+            'defaults' => [
+                'start_date' => now()->addDay()->toDateString(),
+                'end_date' => now()->addDays(2)->toDateString(),
+            ],
+        ]);
     }
 
     /**
@@ -292,7 +404,13 @@ class LeaveRequestController extends Controller
         }
 
         $leave->load(['employee.user', 'approver']);
-        return view('employee.leaves.show', compact('leave'));
+        return Inertia::render('Employee/Leaves/Show', [
+            'leave' => $this->leavePayload($leave),
+            'links' => [
+                'index' => route('employee.leaves.my'),
+                'destroy' => route('employee.leaves.destroy', $leave),
+            ],
+        ]);
     }
 
     /**

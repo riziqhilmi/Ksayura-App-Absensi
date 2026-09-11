@@ -7,6 +7,7 @@ use App\Models\EmployeeHoliday;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
 
 class EmployeeHolidayController extends Controller
 {
@@ -46,14 +47,39 @@ class EmployeeHolidayController extends Controller
             'upcoming' => (clone $baseQuery)->where('date', '>=', today())->where('status', 'scheduled')->count(),
         ];
 
-        return view('owner.employee-holidays.index', compact('holidays', 'employees', 'stats'));
+        return Inertia::render('Owner/EmployeeHolidays/Index', [
+            'holidays' => $holidays->through(fn (EmployeeHoliday $holiday) => $this->holidayPayload($holiday)),
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeePayload($employee))->values(),
+            'stats' => $stats,
+            'filters' => [
+                'employee' => $request->input('employee', ''),
+                'month' => (int) $request->input('month', now()->month),
+                'year' => (int) $request->input('year', now()->year),
+                'status' => $request->input('status', ''),
+            ],
+            'options' => $this->holidayOptions(),
+            'links' => [
+                'index' => route('owner.employee-holidays.index'),
+                'create' => route('owner.employee-holidays.create'),
+                'calendar' => route('owner.employee-holidays.calendar'),
+                'bulk' => route('owner.employee-holidays.bulk'),
+            ],
+        ]);
     }
 
     // Form tambah hari libur karyawan
     public function create()
     {
         $employees = Employee::with('user')->where('status', 'active')->get();
-        return view('owner.employee-holidays.create', compact('employees'));
+        return Inertia::render('Owner/EmployeeHolidays/Form', [
+            'holiday' => null,
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeePayload($employee))->values(),
+            'options' => $this->holidayOptions(),
+            'links' => [
+                'index' => route('owner.employee-holidays.index'),
+                'store' => route('owner.employee-holidays.store'),
+            ],
+        ]);
     }
 
     // Simpan hari libur karyawan
@@ -102,7 +128,17 @@ class EmployeeHolidayController extends Controller
     public function edit(EmployeeHoliday $employeeHoliday)
     {
         $employees = Employee::with('user')->where('status', 'active')->get();
-        return view('owner.employee-holidays.edit', compact('employeeHoliday', 'employees'));
+        $employeeHoliday->load('employee.user');
+
+        return Inertia::render('Owner/EmployeeHolidays/Form', [
+            'holiday' => $this->holidayPayload($employeeHoliday),
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeePayload($employee))->values(),
+            'options' => $this->holidayOptions(),
+            'links' => [
+                'index' => route('owner.employee-holidays.index'),
+                'update' => route('owner.employee-holidays.update', $employeeHoliday),
+            ],
+        ]);
     }
 
     // Update hari libur karyawan
@@ -148,7 +184,14 @@ class EmployeeHolidayController extends Controller
     public function bulkCreate()
     {
         $employees = Employee::with('user')->where('status', 'active')->get();
-        return view('owner.employee-holidays.bulk', compact('employees'));
+        return Inertia::render('Owner/EmployeeHolidays/Bulk', [
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeePayload($employee))->values(),
+            'options' => $this->holidayOptions(),
+            'links' => [
+                'index' => route('owner.employee-holidays.index'),
+                'store' => route('owner.employee-holidays.bulk.store'),
+            ],
+        ]);
     }
 
     // Simpan bulk libur karyawan
@@ -245,17 +288,23 @@ class EmployeeHolidayController extends Controller
             'upcoming' => $holidays->where('date', '>=', today())->where('status', 'scheduled')->count(),
         ];
         
-        return view('owner.employee-holidays.calendar', compact(
-            'employees', 
-            'holidaysByEmployee', 
-            'month', 
-            'year', 
-            'daysInMonth', 
-            'firstDayOfMonth',
-            'monthName',
-            'today',
-            'stats'
-        ));
+        return Inertia::render('Owner/EmployeeHolidays/Calendar', [
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeePayload($employee))->values(),
+            'holidaysByEmployee' => collect($holidaysByEmployee)->map(fn ($items) => collect($items)->map(fn ($holiday) => $this->holidayPayload($holiday))->values())->all(),
+            'month' => (int) $month,
+            'year' => (int) $year,
+            'daysInMonth' => $daysInMonth,
+            'firstDayOfMonth' => $firstDayOfMonth,
+            'monthName' => $monthName,
+            'today' => $today,
+            'stats' => $stats,
+            'options' => $this->holidayOptions(),
+            'links' => [
+                'index' => route('owner.employee-holidays.index'),
+                'calendar' => route('owner.employee-holidays.calendar'),
+                'storeFromCalendar' => route('owner.employee-holidays.store-from-calendar'),
+            ],
+        ]);
     }
 
     // Add holiday from calendar (AJAX)
@@ -339,5 +388,62 @@ class EmployeeHolidayController extends Controller
             });
         
         return response()->json($holidays);
+    }
+
+    private function employeePayload(Employee $employee): array
+    {
+        return [
+            'id' => $employee->id,
+            'name' => $employee->user?->name,
+            'email' => $employee->user?->email,
+            'employee_code' => $employee->employee_code,
+            'position' => $employee->position,
+            'status' => $employee->status,
+        ];
+    }
+
+    private function holidayPayload(EmployeeHoliday $holiday): array
+    {
+        return [
+            'id' => $holiday->id,
+            'employee_id' => $holiday->employee_id,
+            'employee' => $holiday->employee ? $this->employeePayload($holiday->employee) : null,
+            'date' => optional($holiday->date)->format('Y-m-d'),
+            'date_label' => optional($holiday->date)->format('d/m/Y'),
+            'reason' => $holiday->reason,
+            'type' => $holiday->type,
+            'type_label' => $holiday->getTypeLabel(),
+            'is_paid' => (bool) $holiday->is_paid,
+            'status' => $holiday->status,
+            'status_label' => $holiday->getStatusLabel(),
+            'notes' => $holiday->notes,
+            'urls' => [
+                'edit' => route('owner.employee-holidays.edit', $holiday),
+                'destroy' => route('owner.employee-holidays.destroy', $holiday),
+            ],
+        ];
+    }
+
+    private function holidayOptions(): array
+    {
+        return [
+            'types' => [
+                ['value' => 'annual', 'label' => 'Cuti Tahunan'],
+                ['value' => 'sick', 'label' => 'Cuti Sakit'],
+                ['value' => 'personal', 'label' => 'Cuti Pribadi'],
+                ['value' => 'company', 'label' => 'Libur Perusahaan'],
+                ['value' => 'other', 'label' => 'Lainnya'],
+            ],
+            'statuses' => [
+                ['value' => 'scheduled', 'label' => 'Terjadwal'],
+                ['value' => 'taken', 'label' => 'Diambil'],
+                ['value' => 'cancelled', 'label' => 'Dibatalkan'],
+            ],
+            'months' => collect(range(1, 12))->map(fn ($month) => [
+                'value' => $month,
+                'label' => Carbon::create(null, $month, 1)->format('F'),
+            ])->values(),
+            'years' => collect(range(now()->year - 2, now()->year + 1))->values(),
+        ];
     }
 }

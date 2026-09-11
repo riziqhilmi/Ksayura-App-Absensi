@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
 
 class AttendanceController extends Controller
 {
@@ -36,7 +37,7 @@ class AttendanceController extends Controller
             $query->where('status', $request->status);
         }
 
-        $attendances = $query->latest('date')->paginate(20);
+        $attendances = $query->latest('date')->paginate(20)->withQueryString();
         $employees = Employee::with('user')->where('status', 'active')->get();
         
         $stats = [
@@ -49,13 +50,32 @@ class AttendanceController extends Controller
             'auto_checkout' => Attendance::whereDate('date', today())->where('status', 'auto_checkout')->count(),
         ];
 
-        return view('owner.attendance.index', compact('attendances', 'employees', 'stats'));
+        return Inertia::render('Owner/Attendance/Index', [
+            'attendances' => $attendances->through(fn (Attendance $attendance) => $this->attendancePayload($attendance)),
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeeOption($employee))->values(),
+            'stats' => $stats,
+            'filters' => [
+                'date' => $request->input('date', today()->toDateString()),
+                'employee' => $request->input('employee', ''),
+                'status' => $request->input('status', ''),
+            ],
+            'links' => [
+                'index' => route('owner.attendance.index'),
+                'export' => route('owner.attendance.export'),
+            ],
+        ]);
     }
 
     public function show(Attendance $attendance)
     {
         $attendance->load(['employee.user', 'shift']);
-        return view('owner.attendance.show', compact('attendance'));
+        return Inertia::render('Owner/Attendance/Show', [
+            'attendance' => $this->attendancePayload($attendance),
+            'links' => [
+                'index' => route('owner.attendance.index'),
+                'updateStatus' => route('owner.attendance.update-status', $attendance),
+            ],
+        ]);
     }
 
     public function updateStatus(Request $request, Attendance $attendance)
@@ -101,7 +121,7 @@ class AttendanceController extends Controller
             $todayShift = $this->getEmployeeShiftForDate($employee, today());
         }
 
-        $query = Attendance::where('employee_id', $employee->id);
+        $query = Attendance::with('shift')->where('employee_id', $employee->id);
         
         if ($request->filled('month')) {
             $query->whereMonth('date', $request->month);
@@ -115,27 +135,46 @@ class AttendanceController extends Controller
             $query->whereYear('date', now()->year);
         }
 
-        $attendances = $query->latest('date')->paginate(20);
+        $statsQuery = clone $query;
+        $attendances = $query->latest('date')->paginate(20)->withQueryString();
         
         $stats = [
-            'total' => $query->count(),
-            'present' => $query->where('status', 'present')->count(),
-            'late' => $query->where('status', 'late')->count(),
-            'absent' => $query->where('status', 'absent')->count(),
-            'leave' => $query->where('status', 'leave')->count(),
-            'half_day' => $query->where('status', 'half_day')->count(),
-            'auto_checkout' => $query->where('status', 'auto_checkout')->count(),
+            'total' => (clone $statsQuery)->count(),
+            'present' => (clone $statsQuery)->where('status', 'present')->count(),
+            'late' => (clone $statsQuery)->where('status', 'late')->count(),
+            'absent' => (clone $statsQuery)->where('status', 'absent')->count(),
+            'leave' => (clone $statsQuery)->where('status', 'leave')->count(),
+            'half_day' => (clone $statsQuery)->where('status', 'half_day')->count(),
+            'auto_checkout' => (clone $statsQuery)->where('status', 'auto_checkout')->count(),
         ];
 
         $officeLocation = CompanySetting::getOfficeLocation();
 
-        return view('employee.attendance.index', compact(
-            'attendances', 
-            'stats', 
-            'todayAttendance', 
-            'todayShift',
-            'officeLocation'
-        ));
+        return Inertia::render('Employee/Attendance/Index', [
+            'attendances' => $attendances->through(fn (Attendance $attendance) => $this->attendancePayload($attendance)),
+            'stats' => $stats,
+            'todayAttendance' => $todayAttendance ? $this->attendancePayload($todayAttendance->loadMissing('shift')) : null,
+            'todayShift' => $todayShift ? $this->shiftPayload($todayShift) : null,
+            'officeLocation' => $officeLocation,
+            'filters' => [
+                'month' => (int) $request->input('month', now()->month),
+                'year' => (int) $request->input('year', now()->year),
+            ],
+            'options' => [
+                'months' => collect(range(1, 12))->map(fn ($month) => [
+                    'value' => $month,
+                    'label' => Carbon::create(null, $month, 1)->format('F'),
+                ])->values(),
+                'years' => collect(range(now()->year - 2, now()->year))->values(),
+            ],
+            'links' => [
+                'index' => route('employee.attendance.my'),
+                'todayStatus' => route('employee.attendance.today-status'),
+                'checkIn' => route('employee.attendance.check-in'),
+                'checkOut' => route('employee.attendance.check-out'),
+                'validateLocation' => route('owner.settings.validate-location'),
+            ],
+        ]);
     }
 
     public function checkIn(Request $request)
@@ -212,20 +251,14 @@ class AttendanceController extends Controller
         }
 
         // Validasi lokasi
-        $validator = Validator::make($request->all(), [
-            'latitude' => 'required|numeric|between:-90,90',
-            'longitude' => 'required|numeric|between:-180,180',
-            'accuracy' => 'required|numeric|min:0|max:75',
-            'location_recorded_at' => 'required|date',
-            'client_recorded_at' => 'required|date',
-            'timezone' => 'required|string|max:64',
-            'timezone_offset_minutes' => 'required|integer|between:-840,840',
-            'device_fingerprint' => 'required|string|size:64',
-            'is_mock_location' => 'nullable|boolean',
-        ]);
+        $validator = Validator::make(
+            $request->all(),
+            $this->attendanceLocationRules(),
+            $this->attendanceLocationMessages()
+        );
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return $this->attendanceValidationError($validator);
         }
 
         $integrityCheck = $this->validateAttendanceIntegrity($request, $employee);
@@ -306,20 +339,14 @@ class AttendanceController extends Controller
         }
 
         // Validasi lokasi
-        $validator = Validator::make($request->all(), [
-            'latitude' => 'required|numeric|between:-90,90',
-            'longitude' => 'required|numeric|between:-180,180',
-            'accuracy' => 'required|numeric|min:0|max:75',
-            'location_recorded_at' => 'required|date',
-            'client_recorded_at' => 'required|date',
-            'timezone' => 'required|string|max:64',
-            'timezone_offset_minutes' => 'required|integer|between:-840,840',
-            'device_fingerprint' => 'required|string|size:64',
-            'is_mock_location' => 'nullable|boolean',
-        ]);
+        $validator = Validator::make(
+            $request->all(),
+            $this->attendanceLocationRules(),
+            $this->attendanceLocationMessages()
+        );
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return $this->attendanceValidationError($validator);
         }
 
         $integrityCheck = $this->validateAttendanceIntegrity($request, $employee, $attendance);
@@ -576,6 +603,112 @@ class AttendanceController extends Controller
         return $hours . ' jam ' . $mins . ' menit';
     }
 
+    private function attendancePayload(Attendance $attendance): array
+    {
+        $lateMinutes = 0;
+
+        if ($attendance->check_in_time && $attendance->shift) {
+            $lateMinutes = $this->getLateMinutes(Carbon::parse($attendance->check_in_time), $attendance->shift);
+        }
+
+        $workDuration = null;
+        if ($attendance->check_in_time && $attendance->check_out_time) {
+            $workDuration = Carbon::parse($attendance->check_in_time)->diffInMinutes(Carbon::parse($attendance->check_out_time));
+        }
+
+        return [
+            'id' => $attendance->id,
+            'date' => optional($attendance->date)->format('Y-m-d'),
+            'date_label' => optional($attendance->date)->format('d/m/Y'),
+            'date_long' => optional($attendance->date)->format('d F Y'),
+            'employee' => $attendance->employee ? $this->employeeOption($attendance->employee) : null,
+            'shift' => $attendance->shift ? $this->shiftPayload($attendance->shift) : null,
+            'check_in_time' => $attendance->check_in_time ? Carbon::parse($attendance->check_in_time)->format('H:i') : null,
+            'check_out_time' => $attendance->check_out_time ? Carbon::parse($attendance->check_out_time)->format('H:i') : null,
+            'check_in_date' => $attendance->check_in_time ? Carbon::parse($attendance->check_in_time)->format('d F Y') : null,
+            'check_out_date' => $attendance->check_out_time ? Carbon::parse($attendance->check_out_time)->format('d F Y') : null,
+            'latitude_in' => $attendance->latitude_in,
+            'longitude_in' => $attendance->longitude_in,
+            'latitude_out' => $attendance->latitude_out,
+            'longitude_out' => $attendance->longitude_out,
+            'gps_accuracy_in' => $attendance->gps_accuracy_in,
+            'gps_accuracy_out' => $attendance->gps_accuracy_out,
+            'client_time_offset_in' => $attendance->client_time_offset_in,
+            'client_time_offset_out' => $attendance->client_time_offset_out,
+            'fraud_flags' => $attendance->fraud_flags ?? [],
+            'status' => $attendance->status,
+            'notes' => $attendance->notes,
+            'late_minutes' => $lateMinutes,
+            'late_text' => $lateMinutes > 0 ? $lateMinutes . ' menit' : null,
+            'work_duration' => $workDuration,
+            'work_duration_text' => $workDuration ? $this->formatDuration($workDuration) : null,
+            'is_auto_checkout' => (bool) $attendance->is_auto_checkout,
+            'created_at' => optional($attendance->created_at)->format('d/m/Y H:i'),
+            'updated_at' => optional($attendance->updated_at)->format('d/m/Y H:i'),
+            'urls' => [
+                'show' => route('owner.attendance.show', $attendance),
+                'update_status' => route('owner.attendance.update-status', $attendance),
+            ],
+        ];
+    }
+
+    private function employeeOption(Employee $employee): array
+    {
+        return [
+            'id' => $employee->id,
+            'employee_code' => $employee->employee_code,
+            'name' => $employee->user?->name,
+            'email' => $employee->user?->email,
+            'position' => $employee->position,
+            'status' => $employee->status,
+        ];
+    }
+
+    private function shiftPayload(Shift $shift): array
+    {
+        return [
+            'id' => $shift->id,
+            'name' => $shift->name,
+            'start_time' => date('H:i', strtotime($shift->start_time)),
+            'end_time' => date('H:i', strtotime($shift->end_time)),
+            'grace_period' => $shift->grace_period,
+        ];
+    }
+
+    private function attendanceLocationRules(): array
+    {
+        return [
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'accuracy' => 'required|numeric|min:0|max:250',
+            'location_recorded_at' => 'required|date',
+            'client_recorded_at' => 'required|date',
+            'timezone' => 'required|string|max:64',
+            'timezone_offset_minutes' => 'required|integer|between:-840,840',
+            'device_fingerprint' => 'required|string|size:64',
+            'is_mock_location' => 'nullable|boolean',
+        ];
+    }
+
+    private function attendanceLocationMessages(): array
+    {
+        return [
+            'accuracy.max' => 'Akurasi GPS masih terlalu rendah. Tunggu sampai lokasi lebih stabil lalu coba lagi.',
+            'accuracy.required' => 'Akurasi GPS tidak terbaca. Aktifkan GPS lalu coba lagi.',
+            'latitude.required' => 'Latitude lokasi tidak terbaca. Aktifkan izin lokasi lalu coba lagi.',
+            'longitude.required' => 'Longitude lokasi tidak terbaca. Aktifkan izin lokasi lalu coba lagi.',
+            'device_fingerprint.size' => 'Identitas perangkat tidak valid. Muat ulang halaman lalu coba lagi.',
+        ];
+    }
+
+    private function attendanceValidationError($validator)
+    {
+        return response()->json([
+            'error' => $validator->errors()->first(),
+            'errors' => $validator->errors(),
+        ], 422);
+    }
+
     private function validateAttendanceIntegrity(Request $request, Employee $employee, ?Attendance $attendance = null)
     {
         $locationRecordedAt = Carbon::parse($request->location_recorded_at);
@@ -756,12 +889,37 @@ class AttendanceController extends Controller
 
     private function getShiftStartDateTime(Carbon $date, $shift)
     {
-        return $date->copy()->setTimeFromTimeString(date('H:i:s', strtotime($shift->start_time)));
+        $start = $date->copy()->setTimeFromTimeString($this->shiftTimeString($shift->start_time));
+        $end = $date->copy()->setTimeFromTimeString($this->shiftTimeString($shift->end_time));
+
+        if ($end->lessThanOrEqualTo($start) && $date->lessThanOrEqualTo($end)) {
+            return $start->subDay();
+        }
+
+        return $start;
     }
 
     private function getShiftEndDateTime(Carbon $date, $shift)
     {
-        return $date->copy()->setTimeFromTimeString(date('H:i:s', strtotime($shift->end_time)));
+        $start = $date->copy()->setTimeFromTimeString($this->shiftTimeString($shift->start_time));
+        $end = $date->copy()->setTimeFromTimeString($this->shiftTimeString($shift->end_time));
+
+        if ($end->lessThanOrEqualTo($start)) {
+            if ($date->lessThanOrEqualTo($end)) {
+                return $end;
+            }
+
+            return $end->addDay();
+        }
+
+        return $end;
+    }
+
+    private function shiftTimeString($time): string
+    {
+        return $time instanceof Carbon
+            ? $time->format('H:i:s')
+            : Carbon::parse($time)->format('H:i:s');
     }
 
     private function determineAttendanceStatus($checkInTime, $shift)

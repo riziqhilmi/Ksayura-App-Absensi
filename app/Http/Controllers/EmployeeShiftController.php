@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\EmployeeShift;
 use App\Models\Shift;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
 
 class EmployeeShiftController extends Controller
 {
@@ -33,7 +35,20 @@ class EmployeeShiftController extends Controller
             'inactive' => $employeeShifts->where('status', 'inactive')->count(),
         ];
 
-        return view('owner.employee-shifts.index', compact('employeeShifts', 'employees', 'shifts', 'stats'));
+        return Inertia::render('Owner/EmployeeShifts/Index', [
+            'employeeShifts' => $employeeShifts->through(fn (EmployeeShift $employeeShift) => $this->employeeShiftPayload($employeeShift)),
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeeOption($employee))->values(),
+            'shifts' => $shifts->map(fn (Shift $shift) => $this->shiftOption($shift))->values(),
+            'stats' => $stats,
+            'filters' => [
+                'employee' => $request->employee,
+                'status' => $request->status,
+            ],
+            'links' => [
+                'create' => route('owner.employee-shifts.create'),
+                'index' => route('owner.employee-shifts.index'),
+            ],
+        ]);
     }
 
     // Form tambah shift karyawan
@@ -45,7 +60,18 @@ class EmployeeShiftController extends Controller
             ->pluck('employee_id')
             ->all();
 
-        return view('owner.employee-shifts.create', compact('employees', 'shifts', 'assignedEmployeeIds'));
+        return Inertia::render('Owner/EmployeeShifts/Form', [
+            'mode' => 'create',
+            'employeeShift' => null,
+            'employees' => $employees->map(fn (Employee $employee) => array_merge($this->employeeOption($employee), [
+                'already_assigned' => in_array($employee->id, $assignedEmployeeIds),
+            ]))->values(),
+            'shifts' => $shifts->map(fn (Shift $shift) => $this->shiftOption($shift))->values(),
+            'links' => [
+                'index' => route('owner.employee-shifts.index'),
+                'submit' => route('owner.employee-shifts.store'),
+            ],
+        ]);
     }
 
     // Simpan shift karyawan
@@ -97,7 +123,18 @@ class EmployeeShiftController extends Controller
     {
         $employees = Employee::with('user')->where('status', 'active')->get();
         $shifts = Shift::where('status', 'active')->get();
-        return view('owner.employee-shifts.edit', compact('employeeShift', 'employees', 'shifts'));
+        $employeeShift->load(['employee.user', 'shift']);
+
+        return Inertia::render('Owner/EmployeeShifts/Form', [
+            'mode' => 'edit',
+            'employeeShift' => $this->employeeShiftPayload($employeeShift),
+            'employees' => $employees->map(fn (Employee $employee) => $this->employeeOption($employee))->values(),
+            'shifts' => $shifts->map(fn (Shift $shift) => $this->shiftOption($shift))->values(),
+            'links' => [
+                'index' => route('owner.employee-shifts.index'),
+                'submit' => route('owner.employee-shifts.update', $employeeShift),
+            ],
+        ]);
     }
 
     // Update shift karyawan
@@ -153,5 +190,71 @@ class EmployeeShiftController extends Controller
         $employeeShift->delete();
         return redirect()->route('owner.employee-shifts.index')
             ->with('success', 'Shift karyawan berhasil dihapus!');
+    }
+
+    private function employeeShiftPayload(EmployeeShift $employeeShift): array
+    {
+        return [
+            'id' => $employeeShift->id,
+            'employee_id' => $employeeShift->employee_id,
+            'shift_id' => $employeeShift->shift_id,
+            'employee_name' => $employeeShift->employee?->user?->name ?? '-',
+            'employee_code' => $employeeShift->employee?->employee_code ?? '-',
+            'shift_name' => $employeeShift->shift?->name ?? '-',
+            'shift_time' => $employeeShift->shift ? $this->formatTime($employeeShift->shift->start_time) . ' - ' . $this->formatTime($employeeShift->shift->end_time) : '',
+            'day_of_week' => $employeeShift->day_of_week,
+            'day_label' => $employeeShift->day_of_week ? $employeeShift->getDayOfWeekLabel() : 'Setiap Hari',
+            'start_date' => $employeeShift->start_date ? Carbon::parse($employeeShift->start_date)->format('Y-m-d') : null,
+            'end_date' => $employeeShift->end_date ? Carbon::parse($employeeShift->end_date)->format('Y-m-d') : null,
+            'period_label' => $this->periodLabel($employeeShift),
+            'is_recurring' => (bool) $employeeShift->is_recurring,
+            'status' => $employeeShift->status,
+            'notes' => $employeeShift->notes,
+            'created_at' => optional($employeeShift->created_at)->format('d/m/Y H:i'),
+            'updated_at' => optional($employeeShift->updated_at)->format('d/m/Y H:i'),
+            'urls' => [
+                'edit' => route('owner.employee-shifts.edit', $employeeShift),
+                'destroy' => route('owner.employee-shifts.destroy', $employeeShift),
+            ],
+        ];
+    }
+
+    private function employeeOption(Employee $employee): array
+    {
+        return [
+            'id' => $employee->id,
+            'name' => $employee->user?->name,
+            'employee_code' => $employee->employee_code,
+            'label' => ($employee->user?->name ?? 'Karyawan') . ' (' . $employee->employee_code . ')',
+        ];
+    }
+
+    private function shiftOption(Shift $shift): array
+    {
+        return [
+            'id' => $shift->id,
+            'name' => $shift->name,
+            'start_time' => $this->formatTime($shift->start_time),
+            'end_time' => $this->formatTime($shift->end_time),
+            'label' => $shift->name . ' (' . $this->formatTime($shift->start_time) . ' - ' . $this->formatTime($shift->end_time) . ')',
+        ];
+    }
+
+    private function formatTime($value): ?string
+    {
+        return $value ? Carbon::parse($value)->format('H:i') : null;
+    }
+
+    private function periodLabel(EmployeeShift $employeeShift): string
+    {
+        if ($employeeShift->start_date && $employeeShift->end_date) {
+            return Carbon::parse($employeeShift->start_date)->format('d/m/Y') . ' - ' . Carbon::parse($employeeShift->end_date)->format('d/m/Y');
+        }
+
+        if ($employeeShift->start_date) {
+            return Carbon::parse($employeeShift->start_date)->format('d/m/Y') . ' - seterusnya';
+        }
+
+        return '-';
     }
 }

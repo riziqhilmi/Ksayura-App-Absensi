@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Shift;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
 
 class ShiftController extends Controller
 {
@@ -14,12 +16,29 @@ class ShiftController extends Controller
         $activeShifts = Shift::where('status', 'active')->count();
         $inactiveShifts = Shift::where('status', 'inactive')->count();
         
-        return view('owner.shifts.index', compact('shifts', 'activeShifts', 'inactiveShifts'));
+        return Inertia::render('Owner/Shifts/Index', [
+            'shifts' => $shifts->map(fn (Shift $shift) => $this->shiftPayload($shift))->values(),
+            'stats' => [
+                'total' => $shifts->count(),
+                'active' => $activeShifts,
+                'inactive' => $inactiveShifts,
+            ],
+            'links' => [
+                'create' => route('owner.shifts.create'),
+            ],
+        ]);
     }
 
     public function create()
     {
-        return view('owner.shifts.create');
+        return Inertia::render('Owner/Shifts/Form', [
+            'mode' => 'create',
+            'shift' => null,
+            'links' => [
+                'index' => route('owner.shifts.index'),
+                'submit' => route('owner.shifts.store'),
+            ],
+        ]);
     }
 
     public function store(Request $request)
@@ -55,12 +74,25 @@ class ShiftController extends Controller
 
     public function show(Shift $shift)
     {
-        return view('owner.shifts.show', compact('shift'));
+        return Inertia::render('Owner/Shifts/Show', [
+            'shift' => $this->shiftPayload($shift),
+            'links' => [
+                'index' => route('owner.shifts.index'),
+                'edit' => route('owner.shifts.edit', $shift),
+            ],
+        ]);
     }
 
     public function edit(Shift $shift)
     {
-        return view('owner.shifts.edit', compact('shift'));
+        return Inertia::render('Owner/Shifts/Form', [
+            'mode' => 'edit',
+            'shift' => $this->shiftPayload($shift),
+            'links' => [
+                'index' => route('owner.shifts.index'),
+                'submit' => route('owner.shifts.update', $shift),
+            ],
+        ]);
     }
 
     public function update(Request $request, Shift $shift)
@@ -130,5 +162,40 @@ class ShiftController extends Controller
 
         return redirect()->route('owner.shifts.index')
             ->with('success', 'Status shift berhasil diubah menjadi ' . ($newStatus === 'active' ? 'Aktif' : 'Nonaktif'));
+    }
+
+    private function shiftPayload(Shift $shift): array
+    {
+        $startTime = $this->formatTime($shift->start_time);
+        $endTime = $this->formatTime($shift->end_time);
+        $breakStart = $this->formatTime($shift->break_start);
+        $breakEnd = $this->formatTime($shift->break_end);
+
+        return [
+            'id' => $shift->id,
+            'name' => $shift->name,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'break_start' => $breakStart,
+            'break_end' => $breakEnd,
+            'grace_period' => $shift->grace_period,
+            'status' => $shift->status,
+            'notes' => $shift->notes,
+            'duration_hours' => $startTime && $endTime ? Carbon::parse($startTime)->diffInHours(Carbon::parse($endTime)) : 0,
+            'break_duration_minutes' => $breakStart && $breakEnd ? Carbon::parse($breakStart)->diffInMinutes(Carbon::parse($breakEnd)) : null,
+            'created_at' => optional($shift->created_at)->format('d F Y H:i'),
+            'updated_at' => optional($shift->updated_at)->format('d F Y H:i'),
+            'urls' => [
+                'show' => route('owner.shifts.show', $shift),
+                'edit' => route('owner.shifts.edit', $shift),
+                'destroy' => route('owner.shifts.destroy', $shift),
+                'toggle_status' => route('owner.shifts.toggle-status', $shift),
+            ],
+        ];
+    }
+
+    private function formatTime($value): ?string
+    {
+        return $value ? Carbon::parse($value)->format('H:i') : null;
     }
 }
