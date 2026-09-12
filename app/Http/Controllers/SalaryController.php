@@ -313,7 +313,7 @@ class SalaryController extends Controller
         ];
 
         return Inertia::render('Employee/Salaries/Index', [
-            'salaries' => $salaries->through(fn (Salary $salary) => $this->salaryPayload($salary)),
+            'salaries' => $salaries->through(fn (Salary $salary) => $this->salaryPayload($salary, false)),
             'stats' => $stats,
             'filters' => [
                 'period' => $request->input('period', ''),
@@ -334,7 +334,7 @@ class SalaryController extends Controller
         ]);
     }
 
-    private function salaryPayload(Salary $salary): array
+    private function salaryPayload(Salary $salary, bool $ownerUrls = true): array
     {
         $paidDays = (float) ($salary->paid_days ?? ($salary->present_days + $salary->late_days));
         $dailyRate = (float) ($salary->daily_rate ?? $salary->employee?->daily_rate ?? 0);
@@ -369,13 +369,17 @@ class SalaryController extends Controller
             'status' => $salary->status,
             'paid_date' => optional($salary->paid_date)->format('d F Y H:i'),
             'notes' => $salary->notes,
-            'urls' => [
-                'show' => route('owner.salaries.show', $salary),
-                'edit' => route('owner.salaries.edit', $salary),
-                'update' => route('owner.salaries.update', $salary),
-                'mark_paid' => route('owner.salaries.mark-paid', $salary),
-                'destroy' => route('owner.salaries.destroy', $salary),
-            ],
+            'urls' => $ownerUrls
+                ? [
+                    'show' => route('owner.salaries.show', $salary),
+                    'edit' => route('owner.salaries.edit', $salary),
+                    'update' => route('owner.salaries.update', $salary),
+                    'mark_paid' => route('owner.salaries.mark-paid', $salary),
+                    'destroy' => route('owner.salaries.destroy', $salary),
+                ]
+                : [
+                    'show' => route('employee.salaries.show', $salary),
+                ],
         ];
     }
 
@@ -403,7 +407,7 @@ class SalaryController extends Controller
 
         $salary->load(['employee.user']);
         return Inertia::render('Employee/Salaries/Show', [
-            'salary' => $this->salaryPayload($salary),
+            'salary' => $this->salaryPayload($salary, false),
             'links' => [
                 'index' => route('employee.salaries.my'),
             ],

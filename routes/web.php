@@ -85,12 +85,12 @@ Route::resource('employee-holidays', EmployeeHolidayController::class);
     // Salary Management
     Route::get('/salaries', [SalaryController::class, 'index'])->name('salaries.index');
     Route::get('/salaries/calculate', [SalaryController::class, 'calculate'])->name('salaries.calculate');
+    Route::get('/salaries/export', [SalaryController::class, 'export'])->name('salaries.export');
     Route::get('/salaries/{salary}', [SalaryController::class, 'show'])->name('salaries.show');
     Route::get('/salaries/{salary}/edit', [SalaryController::class, 'edit'])->name('salaries.edit');
     Route::put('/salaries/{salary}', [SalaryController::class, 'update'])->name('salaries.update');
     Route::patch('/salaries/{salary}/paid', [SalaryController::class, 'markPaid'])->name('salaries.mark-paid');
     Route::delete('/salaries/{salary}', [SalaryController::class, 'destroy'])->name('salaries.destroy');
-    Route::get('/salaries/export', [SalaryController::class, 'export'])->name('salaries.export');
 
     // Leave Requests Management
     Route::get('/leaves', [LeaveRequestController::class, 'index'])->name('leaves.index');
@@ -132,10 +132,10 @@ Route::middleware(['auth', 'verified'])->prefix('employee')->name('employee.')->
     Route::get('/leaves', [LeaveRequestController::class, 'myLeaves'])->name('leaves.my');
     Route::get('/leaves/create', [LeaveRequestController::class, 'create'])->name('leaves.create');
     Route::post('/leaves', [LeaveRequestController::class, 'store'])->name('leaves.store');
-    Route::get('/leaves/{leave}', [LeaveRequestController::class, 'myShow'])->name('leaves.show');
-    Route::delete('/leaves/{leave}', [LeaveRequestController::class, 'destroy'])->name('leaves.destroy');
     Route::get('/leaves/stats', [LeaveRequestController::class, 'myStats'])->name('leaves.stats');
     Route::post('/leaves/check-availability', [LeaveRequestController::class, 'checkAvailability'])->name('leaves.check-availability');
+    Route::get('/leaves/{leave}', [LeaveRequestController::class, 'myShow'])->name('leaves.show');
+    Route::delete('/leaves/{leave}', [LeaveRequestController::class, 'destroy'])->name('leaves.destroy');
 });
 
 /*

@@ -180,7 +180,7 @@ class LeaveRequestController extends Controller
         return response()->json($leaves);
     }
 
-    private function leavePayload(LeaveRequest $leave): array
+    private function leavePayload(LeaveRequest $leave, bool $ownerUrls = true): array
     {
         $duration = $leave->start_date && $leave->end_date
             ? $leave->start_date->diffInDays($leave->end_date) + 1
@@ -205,11 +205,16 @@ class LeaveRequestController extends Controller
             'rejection_reason' => $leave->rejection_reason,
             'created_at' => optional($leave->created_at)->format('d/m/Y H:i'),
             'created_at_long' => optional($leave->created_at)->format('d F Y H:i'),
-            'urls' => [
-                'show' => route('owner.leaves.show', $leave),
-                'approve' => route('owner.leaves.approve', $leave),
-                'reject' => route('owner.leaves.reject', $leave),
-            ],
+            'urls' => $ownerUrls
+                ? [
+                    'show' => route('owner.leaves.show', $leave),
+                    'approve' => route('owner.leaves.approve', $leave),
+                    'reject' => route('owner.leaves.reject', $leave),
+                ]
+                : [
+                    'show' => route('employee.leaves.show', $leave),
+                    'destroy' => route('employee.leaves.destroy', $leave),
+                ],
         ];
     }
 
@@ -288,7 +293,7 @@ class LeaveRequestController extends Controller
         ];
 
         return Inertia::render('Employee/Leaves/Index', [
-            'leaves' => $leaves->through(fn (LeaveRequest $leave) => $this->leavePayload($leave)),
+            'leaves' => $leaves->through(fn (LeaveRequest $leave) => $this->leavePayload($leave, false)),
             'stats' => $stats,
             'filters' => [
                 'status' => $request->input('status', ''),
@@ -405,7 +410,7 @@ class LeaveRequestController extends Controller
 
         $leave->load(['employee.user', 'approver']);
         return Inertia::render('Employee/Leaves/Show', [
-            'leave' => $this->leavePayload($leave),
+            'leave' => $this->leavePayload($leave, false),
             'links' => [
                 'index' => route('employee.leaves.my'),
                 'destroy' => route('employee.leaves.destroy', $leave),
