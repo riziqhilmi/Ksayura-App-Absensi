@@ -115,7 +115,7 @@ class AttendanceController extends Controller
             ->whereDate('date', today())
             ->first();
 
-        if ($todayAttendance && $todayAttendance->shift_id) {
+        if ($todayAttendance && $todayAttendance->shift_id && $todayAttendance->check_in_time) {
             $todayShift = Shift::find($todayAttendance->shift_id);
         } else {
             $todayShift = $this->getEmployeeShiftForDate($employee, today());
@@ -266,24 +266,17 @@ class AttendanceController extends Controller
             return $integrityCheck;
         }
 
-        $isWithinRadius = CompanySetting::isWithinOfficeRadius(
+        $nearestLocation = CompanySetting::findNearestAttendanceLocation(
             $request->latitude,
             $request->longitude
         );
 
-        if (!$isWithinRadius) {
-            $office = CompanySetting::getOfficeLocation();
-            $distance = CompanySetting::calculateDistance(
-                (float) $request->latitude,
-                (float) $request->longitude,
-                (float) $office['latitude'],
-                (float) $office['longitude']
-            );
-            
+        if (!$nearestLocation || !$nearestLocation['is_within_radius']) {
             return response()->json([
-                'error' => 'Anda berada di luar radius kantor',
-                'distance' => round($distance),
-                'max_distance' => $office['radius']
+                'error' => 'Anda berada di luar radius lokasi absensi',
+                'distance' => round($nearestLocation['distance'] ?? 0),
+                'max_distance' => $nearestLocation['radius'] ?? null,
+                'location_name' => $nearestLocation['name'] ?? 'Lokasi absensi',
             ], 400);
         }
 
@@ -303,7 +296,7 @@ class AttendanceController extends Controller
             'timezone_in' => $request->timezone,
             'client_time_offset_in' => $this->getClientTimeOffset($request),
             'fraud_flags' => $this->buildFraudFlags($request),
-            'check_in_location' => $request->location_name ?? 'Check In',
+            'check_in_location' => $nearestLocation['name'] ?? $request->location_name ?? 'Check In',
             'status' => $status,
             'is_auto_checkout' => false,
         ]);
@@ -354,24 +347,17 @@ class AttendanceController extends Controller
             return $integrityCheck;
         }
 
-        $isWithinRadius = CompanySetting::isWithinOfficeRadius(
+        $nearestLocation = CompanySetting::findNearestAttendanceLocation(
             $request->latitude,
             $request->longitude
         );
 
-        if (!$isWithinRadius) {
-            $office = CompanySetting::getOfficeLocation();
-            $distance = CompanySetting::calculateDistance(
-                (float) $request->latitude,
-                (float) $request->longitude,
-                (float) $office['latitude'],
-                (float) $office['longitude']
-            );
-            
+        if (!$nearestLocation || !$nearestLocation['is_within_radius']) {
             return response()->json([
-                'error' => 'Anda berada di luar radius kantor',
-                'distance' => round($distance),
-                'max_distance' => $office['radius']
+                'error' => 'Anda berada di luar radius lokasi absensi',
+                'distance' => round($nearestLocation['distance'] ?? 0),
+                'max_distance' => $nearestLocation['radius'] ?? null,
+                'location_name' => $nearestLocation['name'] ?? 'Lokasi absensi',
             ], 400);
         }
 
@@ -396,7 +382,7 @@ class AttendanceController extends Controller
                 $attendance->fraud_flags ?? [],
                 $this->buildFraudFlags($request)
             ))),
-            'check_out_location' => $request->location_name ?? 'Check Out',
+            'check_out_location' => $nearestLocation['name'] ?? $request->location_name ?? 'Check Out',
             'status' => $attendance->status,
         ]);
 
@@ -421,7 +407,7 @@ class AttendanceController extends Controller
                                 ->whereDate('date', today())
                                 ->first();
 
-        $shift = $attendance && $attendance->shift_id
+        $shift = $attendance && $attendance->shift_id && $attendance->check_in_time
             ? Shift::find($attendance->shift_id)
             : $this->getEmployeeShiftForDate($employee, today());
         
@@ -804,7 +790,7 @@ class AttendanceController extends Controller
         $date = Carbon::parse($date);
         $dayOfWeek = strtolower($date->format('l'));
 
-        $employeeShift = EmployeeShift::with('shift')
+        $employeeShifts = EmployeeShift::with('shift')
             ->where('employee_id', $employee->id)
             ->where('status', 'active')
             ->whereHas('shift', function ($query) {
@@ -822,12 +808,38 @@ class AttendanceController extends Controller
                 $query->whereNull('day_of_week')
                     ->orWhere('day_of_week', $dayOfWeek);
             })
+            ->orderByRaw("CASE WHEN notes LIKE '[Rolling Shift]%' THEN 0 ELSE 1 END")
+            ->orderByRaw('CASE WHEN start_date IS NULL THEN 1 ELSE 0 END')
+            ->orderByRaw('CASE WHEN end_date IS NULL THEN 1 ELSE 0 END')
             ->orderByRaw('CASE WHEN day_of_week IS NULL THEN 1 ELSE 0 END')
             ->latest('start_date')
             ->latest()
+            ->get();
+
+        $employeeShift = $employeeShifts
+            ->sortByDesc(fn (EmployeeShift $shift) => $this->employeeShiftPriority($shift))
             ->first();
 
         return $employeeShift?->shift;
+    }
+
+    private function employeeShiftPriority(EmployeeShift $employeeShift): int
+    {
+        if (str_starts_with((string) $employeeShift->notes, '[Rolling Shift]')) {
+            return 100;
+        }
+
+        $priority = 0;
+
+        if ($employeeShift->start_date && $employeeShift->end_date) {
+            $priority += 20;
+        }
+
+        if ($employeeShift->day_of_week) {
+            $priority += 10;
+        }
+
+        return $priority;
     }
 
     private function getEmployeeHolidayForDate(Employee $employee, $date)

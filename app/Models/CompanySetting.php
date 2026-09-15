@@ -28,26 +28,81 @@ class CompanySetting extends Model
     // Get office location
     public static function getOfficeLocation()
     {
-        return [
+        $office = [
+            'key' => 'office',
+            'name' => 'Kantor',
             'latitude' => self::get('office_latitude', '-8.180305'),
             'longitude' => self::get('office_longitude', '113.725896'),
             'radius' => (float) self::get('office_radius', 100),
             'address' => self::get('office_address', 'Alamat kantor belum diatur'),
         ];
+
+        return array_merge($office, [
+            'locations' => self::getAttendanceLocations(),
+        ]);
     }
 
-    // Check if location is within office radius
+    public static function getAttendanceLocations()
+    {
+        $locations = [
+            [
+                'key' => 'office',
+                'name' => 'Kantor',
+                'latitude' => self::get('office_latitude', '-8.180305'),
+                'longitude' => self::get('office_longitude', '113.725896'),
+                'radius' => (float) self::get('office_radius', 100),
+                'address' => self::get('office_address', 'Alamat kantor belum diatur'),
+            ],
+        ];
+
+        $marketLatitude = self::get('market_latitude');
+        $marketLongitude = self::get('market_longitude');
+
+        if ($marketLatitude !== null && $marketLongitude !== null && $marketLatitude !== '' && $marketLongitude !== '') {
+            $locations[] = [
+                'key' => 'market',
+                'name' => 'Pasar',
+                'latitude' => $marketLatitude,
+                'longitude' => $marketLongitude,
+                'radius' => (float) self::get('market_radius', self::get('office_radius', 100)),
+                'address' => self::get('market_address', 'Alamat pasar belum diatur'),
+            ];
+        }
+
+        return $locations;
+    }
+
+    public static function findNearestAttendanceLocation($latitude, $longitude)
+    {
+        $nearest = null;
+
+        foreach (self::getAttendanceLocations() as $location) {
+            $distance = self::calculateDistance(
+                (float) $latitude,
+                (float) $longitude,
+                (float) $location['latitude'],
+                (float) $location['longitude']
+            );
+
+            $candidate = array_merge($location, [
+                'distance' => $distance,
+                'is_within_radius' => $distance <= (float) $location['radius'],
+            ]);
+
+            if (!$nearest || $candidate['distance'] < $nearest['distance']) {
+                $nearest = $candidate;
+            }
+        }
+
+        return $nearest;
+    }
+
+    // Check if location is within any attendance radius
     public static function isWithinOfficeRadius($latitude, $longitude)
     {
-        $office = self::getOfficeLocation();
-        $distance = self::calculateDistance(
-            (float) $latitude,
-            (float) $longitude,
-            (float) $office['latitude'],
-            (float) $office['longitude']
-        );
-        
-        return $distance <= $office['radius'];
+        $nearest = self::findNearestAttendanceLocation($latitude, $longitude);
+
+        return $nearest ? $nearest['is_within_radius'] : false;
     }
 
     // Calculate distance between two points using Haversine formula

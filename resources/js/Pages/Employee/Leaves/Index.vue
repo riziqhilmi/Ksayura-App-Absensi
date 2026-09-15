@@ -51,9 +51,14 @@ const applyFilter = () => {
                     <h1 class="text-2xl font-bold text-slate-950">Pengajuan Cuti Saya</h1>
                     <p class="mt-1 text-sm text-slate-500">Lihat status pengajuan dan ajukan cuti baru.</p>
                 </div>
-                <Link :href="links.create" class="inline-flex w-fit rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
-                    Ajukan Cuti
-                </Link>
+                <div class="flex flex-wrap gap-2">
+                    <Link :href="links.teamCalendar" class="inline-flex w-fit rounded-lg bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">
+                        Kalender Tim
+                    </Link>
+                    <Link :href="links.create" class="inline-flex w-fit rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
+                        Ajukan Cuti
+                    </Link>
+                </div>
             </div>
 
             <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

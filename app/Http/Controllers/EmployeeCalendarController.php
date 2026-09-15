@@ -50,6 +50,11 @@ class EmployeeCalendarController extends Controller
         $shifts = EmployeeShift::with('shift')
             ->where('employee_id', $employee->id)
             ->where('status', 'active')
+            ->orderByRaw("CASE WHEN notes LIKE '[Rolling Shift]%' THEN 0 ELSE 1 END")
+            ->orderByRaw('CASE WHEN start_date IS NULL THEN 1 ELSE 0 END')
+            ->orderByRaw('CASE WHEN end_date IS NULL THEN 1 ELSE 0 END')
+            ->latest('start_date')
+            ->latest()
             ->get();
 
         $holidays = EmployeeHoliday::where('employee_id', $employee->id)
@@ -88,6 +93,11 @@ class EmployeeCalendarController extends Controller
             ->whereHas('shift', function ($query) {
                 $query->where('status', 'active');
             })
+            ->orderByRaw("CASE WHEN notes LIKE '[Rolling Shift]%' THEN 0 ELSE 1 END")
+            ->orderByRaw('CASE WHEN start_date IS NULL THEN 1 ELSE 0 END')
+            ->orderByRaw('CASE WHEN end_date IS NULL THEN 1 ELSE 0 END')
+            ->latest('start_date')
+            ->latest()
             ->get();
 
         $holidays = EmployeeHoliday::where('employee_id', $employee->id)
@@ -124,7 +134,7 @@ class EmployeeCalendarController extends Controller
                 if ($date->year == $year && $date->month == $month && !isset($holidays[$dateStr])) {
                     $holidays[$dateStr] = (object) [
                         'date' => $date->copy(),
-                        'reason' => $leave->reason ?? 'Cuti Disetujui',
+                        'reason' => $leave->reason ?? 'Cuti Libur Disetujui',
                         'type' => $leave->leave_type ?? 'annual',
                         'status' => 'approved',
                     ];
@@ -160,6 +170,7 @@ class EmployeeCalendarController extends Controller
                 'is_late' => $attendance?->status === 'late',
                 'shift' => $shiftForDay ? $this->shiftPayload($shiftForDay->shift) : null,
                 'employee_shift' => $shiftForDay ? $this->employeeShiftPayload($shiftForDay) : null,
+                'is_rolling_shift' => $shiftForDay ? $this->isRollingShift($shiftForDay) : false,
                 'is_today' => $dateStr === $today,
                 'is_past' => $date->isPast(),
                 'holiday_type' => $isHoliday ? ($holidayData->status ?? 'scheduled') : null,
@@ -239,24 +250,17 @@ class EmployeeCalendarController extends Controller
             'id' => $employeeShift->id,
             'is_recurring' => (bool) $employeeShift->is_recurring,
             'day_of_week' => $employeeShift->day_of_week,
+            'is_rolling_shift' => $this->isRollingShift($employeeShift),
         ];
     }
 
     private function holidayPayload($holiday): array
     {
-        $typeLabels = [
-            'annual' => 'Cuti Tahunan',
-            'sick' => 'Cuti Sakit',
-            'personal' => 'Cuti Pribadi',
-            'company' => 'Libur Perusahaan',
-            'other' => 'Lainnya',
-        ];
-
         return [
             'date' => Carbon::parse($holiday->date)->format('Y-m-d'),
             'reason' => $holiday->reason,
             'type' => $holiday->type ?? 'annual',
-            'type_label' => method_exists($holiday, 'getTypeLabel') ? $holiday->getTypeLabel() : ($typeLabels[$holiday->type ?? 'annual'] ?? 'Cuti'),
+            'type_label' => ($holiday->status ?? null) === 'approved' ? 'Cuti Libur' : 'Libur',
             'status' => $holiday->status ?? 'scheduled',
         ];
     }
@@ -274,29 +278,53 @@ class EmployeeCalendarController extends Controller
 
     private function findShiftForDate($shifts, Carbon $date, string $dayName): ?EmployeeShift
     {
-        foreach ($shifts as $employeeShift) {
-            if ($employeeShift->start_date && $date->lt($employeeShift->start_date)) {
-                continue;
+        $matchedShifts = $shifts->filter(function (EmployeeShift $employeeShift) use ($date, $dayName) {
+            $dateString = $date->toDateString();
+            $startDate = $employeeShift->start_date?->toDateString();
+            $endDate = $employeeShift->end_date?->toDateString();
+
+            if ($startDate && $dateString < $startDate) {
+                return false;
             }
 
-            if ($employeeShift->end_date && $date->gt($employeeShift->end_date)) {
-                continue;
+            if ($endDate && $dateString > $endDate) {
+                return false;
             }
 
             if ($employeeShift->day_of_week && $employeeShift->day_of_week !== $dayName) {
-                continue;
+                return false;
             }
 
-            if ($employeeShift->is_recurring || (!$employeeShift->start_date && !$employeeShift->end_date)) {
-                return $employeeShift;
-            }
+            return true;
+        });
 
-            if (!$employeeShift->is_recurring && $employeeShift->start_date && $employeeShift->end_date) {
-                return $employeeShift;
-            }
+        return $matchedShifts
+            ->sortByDesc(fn (EmployeeShift $employeeShift) => $this->shiftPriority($employeeShift))
+            ->first();
+    }
+
+    private function shiftPriority(EmployeeShift $employeeShift): int
+    {
+        if ($this->isRollingShift($employeeShift)) {
+            return 100;
         }
 
-        return null;
+        $priority = 0;
+
+        if ($employeeShift->start_date && $employeeShift->end_date) {
+            $priority += 20;
+        }
+
+        if ($employeeShift->day_of_week) {
+            $priority += 10;
+        }
+
+        return $priority;
+    }
+
+    private function isRollingShift(EmployeeShift $employeeShift): bool
+    {
+        return str_starts_with((string) $employeeShift->notes, '[Rolling Shift]');
     }
 
     private function calculateStats(array $calendarData, int $daysInMonth): array

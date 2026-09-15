@@ -36,6 +36,8 @@ const monthlyRows = computed(() => {
     }));
 });
 
+const recap = computed(() => props.stats.recaps || {});
+
 const activityColumns = [
     { key: 'user', label: 'Nama' },
     { key: 'action', label: 'Aktivitas' },
@@ -84,12 +86,12 @@ const activityColumns = [
                 </Card>
 
                 <Card>
-                    <p class="text-sm font-medium text-slate-500">Estimasi Gaji Bulanan</p>
-                    <p class="mt-2 text-2xl font-bold">{{ formatCurrency(stats.total_salary) }}</p>
-                    <p class="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-                        Rata-rata harian<br>
-                        <b class="text-slate-900">{{ formatCurrency(stats.average_salary) }}</b>
-                    </p>
+                    <p class="text-sm font-medium text-slate-500">Rekap Hari Ini</p>
+                    <p class="mt-2 text-3xl font-bold">{{ recap.today_recaps || 0 }}</p>
+                    <div class="mt-4 space-y-2 text-sm">
+                        <p class="flex justify-between text-slate-600"><span>Bukaan aktif</span><b class="text-emerald-600">{{ recap.open_sessions || 0 }}</b></p>
+                        <p class="flex justify-between text-slate-600"><span>Sisa tunai</span><b class="text-slate-900">{{ formatCurrency(recap.today_remaining_cash_amount) }}</b></p>
+                    </div>
                 </Card>
 
                 <Card>
@@ -100,6 +102,29 @@ const activityColumns = [
                         <p class="flex justify-between text-slate-600"><span>Disetujui</span><b class="text-emerald-600">{{ stats.approved_leaves }}</b></p>
                         <p class="flex justify-between text-slate-600"><span>Ditolak</span><b class="text-red-600">{{ stats.rejected_leaves }}</b></p>
                     </div>
+                </Card>
+            </section>
+
+            <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <Card>
+                    <p class="text-sm font-medium text-slate-500">QRIS Hari Ini</p>
+                    <p class="mt-2 text-2xl font-black text-blue-700">{{ formatCurrency(recap.today_qris_amount) }}</p>
+                    <p class="mt-2 text-xs text-slate-500">Rata-rata bulan ini {{ formatCurrency(recap.average_qris_per_recap) }} per rekap</p>
+                </Card>
+                <Card>
+                    <p class="text-sm font-medium text-slate-500">Pengeluaran Hari Ini</p>
+                    <p class="mt-2 text-2xl font-black text-red-600">{{ formatCurrency(recap.today_expense_amount) }}</p>
+                    <p class="mt-2 text-xs text-slate-500">Bulan ini {{ formatCurrency(recap.month_expense_amount) }}</p>
+                </Card>
+                <Card>
+                    <p class="text-sm font-medium text-slate-500">Modal Hari Ini</p>
+                    <p class="mt-2 text-2xl font-black text-emerald-700">{{ formatCurrency(recap.today_capital_amount) }}</p>
+                    <p class="mt-2 text-xs text-slate-500">Sisa tunai {{ formatCurrency(recap.today_remaining_cash_amount) }}</p>
+                </Card>
+                <Card>
+                    <p class="text-sm font-medium text-slate-500">Rekap Bulan Ini</p>
+                    <p class="mt-2 text-2xl font-black text-slate-900">{{ recap.month_recaps || 0 }}</p>
+                    <p class="mt-2 text-xs text-slate-500">QRIS {{ formatCurrency(recap.month_qris_amount) }}</p>
                 </Card>
             </section>
 

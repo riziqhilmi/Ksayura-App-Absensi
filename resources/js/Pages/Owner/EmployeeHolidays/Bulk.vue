@@ -16,7 +16,6 @@ const form = useForm({
     date: '',
     reason: '',
     type: 'company',
-    is_paid: true,
 });
 
 const filteredEmployees = computed(() => props.employees.filter((employee) => {
@@ -60,11 +59,6 @@ const submit = () => form.post(props.links.store, { preserveScroll: true });
                             </select>
                         </div>
                     </div>
-
-                    <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                        <input v-model="form.is_paid" type="checkbox" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
-                        Libur dibayar
-                    </label>
 
                     <div>
                         <label class="text-sm font-semibold text-slate-700">Alasan</label>

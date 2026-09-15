@@ -29,6 +29,19 @@ const durationDays = computed(() => {
     return diff > 0 ? diff : 0;
 });
 
+const hasBlockingIssue = computed(() => availability.value?.can_submit === false);
+const hasTeamConflict = computed(() => availability.value?.has_team_conflict === true);
+
+const teamConflictMessage = computed(() => {
+    const conflicts = availability.value?.team_conflicts || [];
+    if (conflicts.length === 0) return '';
+
+    const first = conflicts[0];
+    const suffix = conflicts.length > 1 ? ` dan ${conflicts.length - 1} karyawan lain` : '';
+
+    return `${first.employee_name}${suffix} sudah memiliki jadwal libur pada tanggal ini. Pengajuan berpotensi bentrok.`;
+});
+
 const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
 const checkAvailability = async () => {
@@ -75,7 +88,10 @@ const submit = () => {
                     <h1 class="text-2xl font-bold text-slate-950">Ajukan Cuti</h1>
                     <p class="mt-1 text-sm text-slate-500">Lengkapi tanggal, jenis cuti, dan alasan pengajuan.</p>
                 </div>
-                <Link :href="links.index" class="inline-flex w-fit rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200">Kembali</Link>
+                <div class="flex flex-wrap gap-2">
+                    <Link :href="links.teamCalendar" class="inline-flex w-fit rounded-lg bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">Kalender Tim</Link>
+                    <Link :href="links.index" class="inline-flex w-fit rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200">Kembali</Link>
+                </div>
             </div>
 
             <Card v-if="pendingCount > 0">
@@ -110,11 +126,22 @@ const submit = () => {
                         </div>
                     </div>
 
-                    <div v-if="availability" class="rounded-lg p-4 text-sm ring-1" :class="availability.available ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : 'bg-red-50 text-red-700 ring-red-100'">
-                        <span v-if="availability.available">Tanggal tersedia untuk diajukan.</span>
-                        <span v-else-if="availability.has_conflict">Ada pengajuan cuti lain pada rentang tanggal ini.</span>
-                        <span v-else-if="availability.is_past">Tanggal mulai tidak boleh di masa lalu.</span>
-                        <span v-else>Tanggal belum dapat diajukan.</span>
+                    <div v-if="availability" class="space-y-3">
+                        <div class="rounded-lg p-4 text-sm ring-1" :class="hasBlockingIssue ? 'bg-red-50 text-red-700 ring-red-100' : 'bg-emerald-50 text-emerald-700 ring-emerald-100'">
+                            <span v-if="!hasBlockingIssue">Tanggal dapat diajukan.</span>
+                            <span v-else-if="availability.has_conflict">Anda sudah memiliki pengajuan cuti pada rentang tanggal ini.</span>
+                            <span v-else-if="availability.is_past">Tanggal mulai tidak boleh di masa lalu.</span>
+                            <span v-else>Tanggal belum dapat diajukan.</span>
+                        </div>
+
+                        <div v-if="hasTeamConflict" class="rounded-lg bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-100">
+                            <p class="font-semibold">{{ teamConflictMessage }}</p>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <span v-for="(conflict, index) in availability.team_conflicts" :key="`${conflict.employee_name}-${index}`" class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+                                    {{ conflict.employee_name }} - {{ conflict.status }}
+                                </span>
+                            </div>
+                        </div>
                     </div>
                     <div v-else-if="checking" class="rounded-lg bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-100">
                         Mengecek ketersediaan tanggal...
@@ -128,7 +155,7 @@ const submit = () => {
 
                     <div class="flex justify-end gap-2 border-t border-slate-100 pt-5">
                         <Link :href="links.index" class="rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200">Batal</Link>
-                        <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" :disabled="form.processing || availability?.available === false">
+                        <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" :disabled="form.processing || hasBlockingIssue">
                             {{ form.processing ? 'Mengirim...' : 'Kirim Pengajuan' }}
                         </button>
                     </div>

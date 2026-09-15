@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Link, router, usePage } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import Toast from './Toast.vue';
 
 const page = usePage();
@@ -13,9 +13,24 @@ const navigation = computed(() => page.props.navigation ?? { items: [] });
 const initials = computed(() => user.value?.avatar_initial || user.value?.name?.charAt(0) || 'U');
 
 const logout = () => {
-    router.post(navigation.value.logout_url, {}, {
-        preserveScroll: false,
-    });
+    userMenuOpen.value = false;
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = navigation.value.logout_url;
+
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    if (token) {
+        const csrf = document.createElement('input');
+        csrf.type = 'hidden';
+        csrf.name = '_token';
+        csrf.value = token;
+        form.appendChild(csrf);
+    }
+
+    document.body.appendChild(form);
+    form.submit();
 };
 </script>
 
@@ -103,14 +118,15 @@ const logout = () => {
                             v-if="userMenuOpen"
                             class="absolute right-0 mt-2 w-52 rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
                         >
-                            <a :href="navigation.profile_url" class="block rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">Profil</a>
-                            <a
+                            <Link :href="navigation.profile_url" class="block rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100" @click="userMenuOpen = false">Profil</Link>
+                            <Link
                                 v-if="navigation.settings_url"
                                 :href="navigation.settings_url"
                                 class="block rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
+                                @click="userMenuOpen = false"
                             >
                                 Pengaturan
-                            </a>
+                            </Link>
                             <button
                                 type="button"
                                 class="block w-full rounded-md px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
@@ -129,7 +145,7 @@ const logout = () => {
         </div>
 
         <nav v-if="user?.role === 'employee'" class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
-            <div class="grid grid-cols-5 gap-1">
+            <div class="grid gap-1" :class="navigation.items.length > 5 ? 'grid-cols-6' : 'grid-cols-5'">
                 <component
                     :is="item.inertia ? Link : 'a'"
                     v-for="item in navigation.items"

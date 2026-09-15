@@ -26,7 +26,6 @@ const form = reactive({
     date: '',
     type: 'company',
     reason: '',
-    is_paid: true,
 });
 
 const days = computed(() => Array.from({ length: props.daysInMonth }, (_, index) => {
@@ -53,7 +52,6 @@ const openCreate = (employee, date) => {
     form.date = date;
     form.type = 'company';
     form.reason = '';
-    form.is_paid = true;
     notice.value = '';
     modalOpen.value = true;
 };
@@ -156,10 +154,6 @@ const submit = async () => {
                         <option v-for="type in options.types" :key="type.value" :value="type.value">{{ type.label }}</option>
                     </select>
                 </div>
-                <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <input v-model="form.is_paid" type="checkbox" class="rounded border-slate-300 text-emerald-600">
-                    Libur dibayar
-                </label>
                 <div>
                     <label class="text-sm font-semibold text-slate-700">Alasan</label>
                     <input v-model="form.reason" type="text" class="mt-1 w-full rounded-lg border-slate-200 px-3 py-2 text-sm">

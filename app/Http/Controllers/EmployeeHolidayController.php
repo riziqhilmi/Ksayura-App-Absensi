@@ -89,7 +89,7 @@ class EmployeeHolidayController extends Controller
             'employee_id' => 'required|exists:employees,id',
             'date' => 'required|date',
             'reason' => 'nullable|string|max:255',
-            'type' => 'required|in:annual,sick,personal,company,other',
+            'type' => 'required|in:company',
             'is_paid' => 'boolean',
             'notes' => 'nullable|string|max:500',
         ]);
@@ -148,7 +148,7 @@ class EmployeeHolidayController extends Controller
             'employee_id' => 'required|exists:employees,id',
             'date' => 'required|date',
             'reason' => 'nullable|string|max:255',
-            'type' => 'required|in:annual,sick,personal,company,other',
+            'type' => 'required|in:company',
             'is_paid' => 'boolean',
             'status' => 'required|in:scheduled,taken,cancelled',
             'notes' => 'nullable|string|max:500',
@@ -202,7 +202,7 @@ class EmployeeHolidayController extends Controller
             'employee_ids.*' => 'exists:employees,id',
             'date' => 'required|date',
             'reason' => 'nullable|string|max:255',
-            'type' => 'required|in:annual,sick,personal,company,other',
+            'type' => 'required|in:company',
             'is_paid' => 'boolean',
         ]);
 
@@ -313,7 +313,7 @@ class EmployeeHolidayController extends Controller
         $validator = Validator::make($request->all(), [
             'employee_id' => 'required|exists:employees,id',
             'date' => 'required|date',
-            'type' => 'required|in:annual,sick,personal,company,other',
+            'type' => 'required|in:company',
             'reason' => 'nullable|string|max:255',
             'is_paid' => 'boolean',
         ]);
@@ -428,11 +428,7 @@ class EmployeeHolidayController extends Controller
     {
         return [
             'types' => [
-                ['value' => 'annual', 'label' => 'Cuti Tahunan'],
-                ['value' => 'sick', 'label' => 'Cuti Sakit'],
-                ['value' => 'personal', 'label' => 'Cuti Pribadi'],
-                ['value' => 'company', 'label' => 'Libur Perusahaan'],
-                ['value' => 'other', 'label' => 'Lainnya'],
+                ['value' => 'company', 'label' => 'Libur'],
             ],
             'statuses' => [
                 ['value' => 'scheduled', 'label' => 'Terjadwal'],

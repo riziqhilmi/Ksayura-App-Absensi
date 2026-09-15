@@ -27,13 +27,34 @@ const form = useForm({
     status: props.employee?.status ?? 'active',
 });
 
+const toInt = (value) => {
+    const number = Number(String(value ?? '').replace(/\D/g, ''));
+    return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
+};
+
+const formatNumber = (value) => {
+    const amount = toInt(value);
+
+    return amount > 0 ? amount.toLocaleString('id-ID') : '';
+};
+
+const setCurrency = (field, event) => {
+    form[field] = toInt(event.target.value);
+};
+
 const submit = () => {
+    const transformedForm = form.transform((data) => ({
+        ...data,
+        daily_rate: toInt(data.daily_rate),
+        hourly_rate: toInt(data.hourly_rate),
+    }));
+
     if (isEdit.value) {
-        form.put(props.links.submit, { preserveScroll: true });
+        transformedForm.put(props.links.submit, { preserveScroll: true });
         return;
     }
 
-    form.post(props.links.submit, { preserveScroll: true });
+    transformedForm.post(props.links.submit, { preserveScroll: true });
 };
 </script>
 
@@ -87,13 +108,13 @@ const submit = () => {
                             <FormField label="Gaji Harian *" :error="form.errors.daily_rate">
                                 <div class="relative">
                                     <span class="absolute left-3 top-2.5 text-sm text-slate-500">Rp</span>
-                                    <input v-model="form.daily_rate" type="number" required min="0" class="w-full rounded-lg border-slate-200 py-2.5 pl-10 pr-4 text-sm focus:border-emerald-500 focus:ring-emerald-100">
+                                    <input :value="formatNumber(form.daily_rate)" type="text" inputmode="numeric" required class="w-full rounded-lg border-slate-200 py-2.5 pl-10 pr-4 text-sm focus:border-emerald-500 focus:ring-emerald-100" placeholder="0" @input="setCurrency('daily_rate', $event)">
                                 </div>
                             </FormField>
                             <FormField label="Tarif Per Jam">
                                 <div class="relative">
                                     <span class="absolute left-3 top-2.5 text-sm text-slate-500">Rp</span>
-                                    <input v-model="form.hourly_rate" type="number" min="0" class="w-full rounded-lg border-slate-200 py-2.5 pl-10 pr-4 text-sm focus:border-emerald-500 focus:ring-emerald-100">
+                                    <input :value="formatNumber(form.hourly_rate)" type="text" inputmode="numeric" class="w-full rounded-lg border-slate-200 py-2.5 pl-10 pr-4 text-sm focus:border-emerald-500 focus:ring-emerald-100" placeholder="0" @input="setCurrency('hourly_rate', $event)">
                                 </div>
                             </FormField>
                             <FormField v-if="isEdit" label="Status *" :error="form.errors.status">

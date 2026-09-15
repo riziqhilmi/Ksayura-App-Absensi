@@ -8,8 +8,8 @@ const props = defineProps({
     employee: { type: Object, required: true },
     todayAttendance: { type: Object, default: null },
     stats: { type: Object, required: true },
+    recapStats: { type: Object, required: true },
     pendingLeaves: { type: Number, default: 0 },
-    latestSalary: { type: Object, default: null },
     recentActivities: { type: Array, default: () => [] },
     quickLinks: { type: Object, required: true },
 });
@@ -60,8 +60,33 @@ const todayStatus = computed(() => {
                     <p class="mt-2 text-2xl font-bold text-amber-600">{{ pendingLeaves }}</p>
                 </Card>
                 <Card>
-                    <p class="text-xs font-semibold text-slate-500">Gaji Terakhir</p>
-                    <p class="mt-2 truncate text-lg font-bold text-blue-600">{{ formatCurrency(latestSalary?.total_salary) }}</p>
+                    <p class="text-xs font-semibold text-slate-500">Rekap Hari Ini</p>
+                    <p class="mt-2 text-2xl font-bold text-blue-600">{{ recapStats.today_recaps }}</p>
+                </Card>
+            </section>
+
+            <section class="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                <Card>
+                    <p class="text-xs font-semibold text-slate-500">QRIS Hari Ini</p>
+                    <p class="mt-2 text-xl font-black text-blue-700">{{ formatCurrency(recapStats.today_qris_amount) }}</p>
+                    <p class="mt-1 text-xs text-slate-500">Bulan ini {{ formatCurrency(recapStats.month_qris_amount) }}</p>
+                </Card>
+                <Card>
+                    <p class="text-xs font-semibold text-slate-500">Pengeluaran Hari Ini</p>
+                    <p class="mt-2 text-xl font-black text-red-600">{{ formatCurrency(recapStats.today_expense_amount) }}</p>
+                    <p class="mt-1 text-xs text-slate-500">Bulan ini {{ formatCurrency(recapStats.month_expense_amount) }}</p>
+                </Card>
+                <Card>
+                    <p class="text-xs font-semibold text-slate-500">Sisa Tunai Hari Ini</p>
+                    <p class="mt-2 text-xl font-black text-emerald-700">{{ formatCurrency(recapStats.today_remaining_cash_amount) }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ recapStats.month_recaps }} rekap bulan ini</p>
+                </Card>
+                <Card>
+                    <p class="text-xs font-semibold text-slate-500">Bukaan Rekap</p>
+                    <p class="mt-2 text-xl font-black" :class="recapStats.has_open_session ? 'text-emerald-700' : 'text-slate-700'">
+                        {{ recapStats.has_open_session ? 'Aktif' : 'Belum aktif' }}
+                    </p>
+                    <p class="mt-1 text-xs text-slate-500">Gunakan pengeluaran, QRIS, lalu simpan rekap.</p>
                 </Card>
             </section>
 
@@ -70,13 +95,13 @@ const todayStatus = computed(() => {
                     <p class="font-bold text-slate-900">Absensi</p>
                     <p class="mt-1 text-sm text-slate-500">Lihat riwayat dan status absensi.</p>
                 </a>
-                <a :href="quickLinks.leaveCreate" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md">
-                    <p class="font-bold text-slate-900">Ajukan Cuti</p>
-                    <p class="mt-1 text-sm text-slate-500">Buat pengajuan cuti baru.</p>
+                <a :href="quickLinks.qris" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md">
+                    <p class="font-bold text-slate-900">QRIS</p>
+                    <p class="mt-1 text-sm text-slate-500">Catat transaksi dan bukti pembayaran.</p>
                 </a>
-                <a :href="quickLinks.calendar" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md">
-                    <p class="font-bold text-slate-900">Kalender Kerja</p>
-                    <p class="mt-1 text-sm text-slate-500">Lihat jadwal shift dan hari libur.</p>
+                <a :href="quickLinks.dailyRecap" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md">
+                    <p class="font-bold text-slate-900">Rekap Harian</p>
+                    <p class="mt-1 text-sm text-slate-500">Pantau rekap, pengeluaran, sisa kas, dan modal.</p>
                 </a>
             </section>
 
@@ -86,9 +111,6 @@ const todayStatus = computed(() => {
                         <h2 class="text-lg font-bold">Aktivitas Terbaru</h2>
                         <p class="text-sm text-slate-500">Ringkasan aktivitas pribadi terakhir.</p>
                     </div>
-                    <a :href="quickLinks.attendance" class="text-sm font-semibold text-emerald-700 hover:text-emerald-800">
-                        Detail
-                    </a>
                 </div>
 
                 <div v-if="recentActivities.length" class="divide-y divide-slate-100 rounded-lg border border-slate-100">

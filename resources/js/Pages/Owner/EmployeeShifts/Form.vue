@@ -26,6 +26,35 @@ const form = useForm({
     notes: props.employeeShift?.notes ?? '',
 });
 
+const selectedEmployee = computed(() =>
+    props.employees.find((employee) => String(employee.id) === String(form.employee_id))
+);
+
+const activeAssignments = computed(() =>
+    (selectedEmployee.value?.active_assignments || [])
+        .filter((assignment) => !isEdit.value || assignment.id !== props.employeeShift?.id)
+);
+
+const normalizedStart = computed(() => form.start_date || '1000-01-01');
+const normalizedEnd = computed(() => form.end_date || '9999-12-31');
+
+const rangesOverlap = (assignment) => {
+    const assignmentStart = assignment.start_date || '1000-01-01';
+    const assignmentEnd = assignment.end_date || '9999-12-31';
+
+    return assignmentStart <= normalizedEnd.value && assignmentEnd >= normalizedStart.value;
+};
+
+const daysOverlap = (assignment) => {
+    if (!form.day_of_week) return true;
+
+    return !assignment.day_of_week || assignment.day_of_week === form.day_of_week;
+};
+
+const conflictingAssignments = computed(() =>
+    activeAssignments.value.filter((assignment) => rangesOverlap(assignment) && daysOverlap(assignment))
+);
+
 const days = [
     { value: '', label: 'Setiap Hari' },
     { value: 'monday', label: 'Senin' },
@@ -80,13 +109,33 @@ const submit = () => {
                                 v-for="employee in employees"
                                 :key="employee.id"
                                 :value="employee.id"
-                                :disabled="!isEdit && employee.already_assigned"
                             >
-                                {{ employee.label }}{{ !isEdit && employee.already_assigned ? ' - sudah punya shift' : '' }}
+                                {{ employee.label }}
                             </option>
                         </select>
-                        <span v-if="!isEdit" class="mt-1 block text-xs text-slate-500">Karyawan yang sudah punya penugasan shift aktif tidak bisa dipilih lagi.</span>
+                        <span v-if="!isEdit" class="mt-1 block text-xs text-slate-500">Karyawan boleh punya beberapa shift aktif selama rentang tanggal dan hari tidak bentrok.</span>
                     </FormField>
+
+                    <div v-if="selectedEmployee && activeAssignments.length" class="rounded-lg border p-4" :class="conflictingAssignments.length ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'">
+                        <p class="text-sm font-bold" :class="conflictingAssignments.length ? 'text-amber-800' : 'text-slate-700'">
+                            {{ conflictingAssignments.length ? 'Peringatan: jadwal berpotensi bentrok' : 'Penugasan aktif karyawan ini' }}
+                        </p>
+                        <p class="mt-1 text-xs" :class="conflictingAssignments.length ? 'text-amber-700' : 'text-slate-500'">
+                            {{ conflictingAssignments.length ? 'Karyawan ini sudah punya shift pada rentang tanggal/hari yang dipilih.' : 'Pastikan shift baru berada di luar tanggal atau hari berikut.' }}
+                        </p>
+                        <div class="mt-3 space-y-2">
+                            <div
+                                v-for="assignment in activeAssignments"
+                                :key="assignment.id"
+                                class="rounded-lg bg-white px-3 py-2 text-sm ring-1"
+                                :class="conflictingAssignments.some((item) => item.id === assignment.id) ? 'ring-amber-200' : 'ring-slate-200'"
+                            >
+                                <b class="text-slate-900">{{ assignment.shift_name }}</b>
+                                <span class="text-slate-500"> - {{ assignment.shift_time || '-' }}</span>
+                                <span class="block text-xs text-slate-500">{{ assignment.day_label }} | {{ assignment.period_label }}</span>
+                            </div>
+                        </div>
+                    </div>
 
                     <FormField label="Shift *" :error="form.errors.shift_id">
                         <select v-model="form.shift_id" required class="w-full rounded-lg border-slate-200 px-4 py-2.5 text-sm focus:border-emerald-500 focus:ring-emerald-100">

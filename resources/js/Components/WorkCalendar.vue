@@ -23,7 +23,7 @@ const label = (day) => {
     if (day.is_late) return 'Terlambat';
     if (day.is_present) return 'Hadir';
     if (day.is_holiday) return day.holiday?.type_label || 'Libur';
-    if (day.shift) return day.shift.name;
+    if (day.shift) return day.is_rolling_shift ? `Rolling: ${day.shift.name}` : day.shift.name;
     if (day.is_weekend) return 'Akhir Pekan';
     return 'Kosong';
 };
@@ -33,6 +33,7 @@ const labelClass = (day) => {
     if (day.is_late) return 'bg-amber-100 text-amber-700';
     if (day.is_present) return 'bg-emerald-100 text-emerald-700';
     if (day.is_holiday) return 'bg-violet-100 text-violet-700';
+    if (day.is_rolling_shift) return 'bg-blue-100 text-blue-700';
     if (day.shift) return 'bg-emerald-100 text-emerald-700';
     return 'bg-slate-100 text-slate-600';
 };

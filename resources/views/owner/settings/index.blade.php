@@ -69,6 +69,52 @@
                         @enderror
                     </div>
 
+                    <div class="border-t border-gray-100 pt-6">
+                        <h4 class="text-base font-semibold text-gray-800">Lokasi Pasar</h4>
+                        <p class="text-sm text-gray-500 mt-1">Isi koordinat pasar agar absensi juga diterima dari titik pasar.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="market_latitude" class="block text-sm font-medium text-gray-700 mb-1">Latitude Pasar</label>
+                            <input type="text" id="market_latitude" name="market_latitude"
+                                   value="{{ old('market_latitude', \App\Models\CompanySetting::get('market_latitude')) }}"
+                                   class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
+                            @error('market_latitude')
+                                <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label for="market_longitude" class="block text-sm font-medium text-gray-700 mb-1">Longitude Pasar</label>
+                            <input type="text" id="market_longitude" name="market_longitude"
+                                   value="{{ old('market_longitude', \App\Models\CompanySetting::get('market_longitude')) }}"
+                                   class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
+                            @error('market_longitude')
+                                <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="market_radius" class="block text-sm font-medium text-gray-700 mb-1">Radius Absensi Pasar (meter)</label>
+                        <input type="number" id="market_radius" name="market_radius"
+                               value="{{ old('market_radius', \App\Models\CompanySetting::get('market_radius', $office['radius'])) }}"
+                               min="10" max="5000"
+                               class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">
+                        @error('market_radius')
+                            <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label for="market_address" class="block text-sm font-medium text-gray-700 mb-1">Alamat Pasar</label>
+                        <textarea id="market_address" name="market_address" rows="2"
+                            class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200">{{ old('market_address', \App\Models\CompanySetting::get('market_address')) }}</textarea>
+                        @error('market_address')
+                            <p class="text-sm text-red-600 mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     <div class="flex items-center justify-end">
                         <button type="submit"
                             class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-emerald-500 text-white font-medium rounded-xl hover:from-blue-700 hover:to-emerald-600 transition duration-200 shadow-md hover:shadow-lg">
@@ -93,22 +139,14 @@
                 </h3>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    @foreach($locations as $location)
                     <div class="p-4 bg-gray-50 rounded-xl">
-                        <p class="text-sm text-gray-500">Latitude</p>
-                        <p class="text-lg font-semibold text-gray-800">{{ $office['latitude'] }}</p>
+                        <p class="text-sm text-gray-500">{{ $location['name'] }}</p>
+                        <p class="text-lg font-semibold text-gray-800">{{ $location['latitude'] }}, {{ $location['longitude'] }}</p>
+                        <p class="mt-1 text-sm text-gray-600">Radius {{ $location['radius'] }} meter</p>
+                        <p class="mt-1 text-sm text-gray-500">{{ $location['address'] }}</p>
                     </div>
-                    <div class="p-4 bg-gray-50 rounded-xl">
-                        <p class="text-sm text-gray-500">Longitude</p>
-                        <p class="text-lg font-semibold text-gray-800">{{ $office['longitude'] }}</p>
-                    </div>
-                    <div class="p-4 bg-gray-50 rounded-xl">
-                        <p class="text-sm text-gray-500">Radius Absensi</p>
-                        <p class="text-lg font-semibold text-gray-800">{{ $office['radius'] }} meter</p>
-                    </div>
-                    <div class="p-4 bg-gray-50 rounded-xl">
-                        <p class="text-sm text-gray-500">Alamat</p>
-                        <p class="text-lg font-semibold text-gray-800">{{ $office['address'] }}</p>
-                    </div>
+                    @endforeach
                 </div>
 
                 <div class="mt-4 p-4 bg-blue-50 rounded-xl">
@@ -116,7 +154,7 @@
                         <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        Karyawan hanya dapat melakukan absensi jika berada dalam radius {{ $office['radius'] }} meter dari lokasi kantor.
+                        Karyawan dapat melakukan absensi jika berada dalam radius salah satu lokasi aktif: kantor atau pasar.
                     </p>
                 </div>
             </div>

@@ -13,6 +13,10 @@ class Kernel extends ConsoleKernel
         $schedule->call(function () {
             app(\App\Http\Controllers\AttendanceController::class)->autoCheckOut();
         })->everyFiveMinutes();
+
+        $schedule->command('daily-recaps:delete-expired-qris-evidence')
+            ->hourly()
+            ->withoutOverlapping();
     }
 
     protected function commands(): void

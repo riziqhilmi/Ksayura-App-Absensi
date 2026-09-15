@@ -42,10 +42,6 @@
                                 {{ __('Master Shift') }}
                             </x-nav-link>
                             
-                            <x-nav-link :href="route('owner.salaries.index')" :active="request()->routeIs('owner.salaries.*')">
-                                {{ __('Gaji') }}
-                            </x-nav-link>
-                            
                             <!-- Cuti dengan Badge Notifikasi -->
                             @php
                                 $pendingLeaves = App\Models\LeaveRequest::where('status', 'pending')->count();
@@ -73,10 +69,6 @@
                             
                             <x-nav-link :href="route('employee.attendance.my')" :active="request()->routeIs('employee.attendance.*')">
                                 {{ __('Absensi Saya') }}
-                            </x-nav-link>
-                            
-                            <x-nav-link :href="route('employee.salaries.my')" :active="request()->routeIs('employee.salaries.*')">
-                                {{ __('Gaji Saya') }}
                             </x-nav-link>
                             
                             <!-- Cuti Employee dengan Badge -->
@@ -197,10 +189,6 @@
                         {{ __('Master Shift') }}
                     </x-responsive-nav-link>
                     
-                    <x-responsive-nav-link :href="route('owner.salaries.index')" :active="request()->routeIs('owner.salaries.*')">
-                        {{ __('Gaji') }}
-                    </x-responsive-nav-link>
-                    
                     <x-responsive-nav-link :href="route('owner.leaves.index')" :active="request()->routeIs('owner.leaves.*')">
                         <span class="flex items-center">
                             {{ __('Pengajuan Cuti') }}
@@ -227,10 +215,6 @@
                     
                     <x-responsive-nav-link :href="route('employee.attendance.my')" :active="request()->routeIs('employee.attendance.*')">
                         {{ __('Absensi Saya') }}
-                    </x-responsive-nav-link>
-                    
-                    <x-responsive-nav-link :href="route('employee.salaries.my')" :active="request()->routeIs('employee.salaries.*')">
-                        {{ __('Gaji Saya') }}
                     </x-responsive-nav-link>
                     
                     <x-responsive-nav-link :href="route('employee.leaves.my')" :active="request()->routeIs('employee.leaves.*')">

@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\DailyRecap;
+use App\Models\DailyRecapExpenseSession;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
-use App\Models\Salary;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -49,11 +50,26 @@ class OwnerDashboardController extends Controller
             'auto_checkout' => $monthAttendance->where('status', 'auto_checkout')->count(),
         ];
         
-        // Salary Stats
-        $totalSalary = $employees->sum('daily_rate') * 30; // Estimasi gaji bulanan (30 hari)
-        $averageSalary = $employees->count() > 0 
-            ? round($employees->avg('daily_rate')) 
-            : 0;
+        // Daily recap and cashflow stats
+        $todayRecaps = DailyRecap::with('employee.user')->whereDate('recap_date', $today)->get();
+        $monthRecaps = DailyRecap::whereBetween('recap_date', [$monthStart, $today])->get();
+        $openRecapSessions = DailyRecapExpenseSession::whereDate('recap_date', $today)
+            ->whereNull('closed_at')
+            ->count();
+
+        $recapStats = [
+            'today_recaps' => $todayRecaps->count(),
+            'today_expense_amount' => (int) $todayRecaps->sum('total_expense_amount'),
+            'today_qris_amount' => (int) $todayRecaps->sum('total_qris_amount'),
+            'today_remaining_cash_amount' => (int) $todayRecaps->sum('remaining_cash_amount'),
+            'today_capital_amount' => (int) $todayRecaps->sum('capital_amount'),
+            'open_sessions' => $openRecapSessions,
+            'month_recaps' => $monthRecaps->count(),
+            'month_expense_amount' => (int) $monthRecaps->sum('total_expense_amount'),
+            'month_qris_amount' => (int) $monthRecaps->sum('total_qris_amount'),
+            'month_remaining_cash_amount' => (int) $monthRecaps->sum('remaining_cash_amount'),
+            'average_qris_per_recap' => $monthRecaps->count() > 0 ? (int) round($monthRecaps->sum('total_qris_amount') / $monthRecaps->count()) : 0,
+        ];
         
         // Leave Requests
         $pendingLeaves = LeaveRequest::where('status', 'pending')->count();
@@ -107,10 +123,25 @@ class OwnerDashboardController extends Controller
             
             $recentActivities[] = [
                 'user' => $leave->employee->user->name ?? 'Unknown',
-                'action' => 'Cuti ' . $leave->leave_type . ': ' . ($statusMap[$leave->status] ?? $leave->status),
+                'action' => 'Cuti Libur: ' . ($statusMap[$leave->status] ?? $leave->status),
                 'time' => $leave->created_at->diffForHumans(),
                 'type' => 'leave',
                 'status' => $leave->status,
+            ];
+        }
+
+        $recentRecaps = DailyRecap::with(['employee.user'])
+            ->latest()
+            ->limit(5)
+            ->get();
+
+        foreach ($recentRecaps as $recap) {
+            $recentActivities[] = [
+                'user' => $recap->employee?->user?->name ?? 'Unknown',
+                'action' => 'Rekap: QRIS Rp ' . number_format((int) $recap->total_qris_amount, 0, ',', '.') . ' | Pengeluaran Rp ' . number_format((int) $recap->total_expense_amount, 0, ',', '.'),
+                'time' => $recap->updated_at->diffForHumans(),
+                'type' => 'recap',
+                'status' => 'recap',
             ];
         }
         
@@ -128,8 +159,6 @@ class OwnerDashboardController extends Controller
             'resigned_employees' => $resignedEmployees,
             'new_employees' => $newEmployees,
             'active_percentage' => $totalEmployees > 0 ? round(($activeEmployees / $totalEmployees) * 100) : 0,
-            'total_salary' => $totalSalary,
-            'average_salary' => $averageSalary,
             'today_attendance' => $todayTotal,
             'today_present' => $todayPresent,
             'today_late' => $todayLate,
@@ -142,6 +171,7 @@ class OwnerDashboardController extends Controller
             'rejected_leaves' => $rejectedLeaves,
             'total_leaves' => $totalLeaves,
             'monthly_attendance' => $monthlyStats,
+            'recaps' => $recapStats,
         ];
 
         return Inertia::render('Owner/Dashboard', [

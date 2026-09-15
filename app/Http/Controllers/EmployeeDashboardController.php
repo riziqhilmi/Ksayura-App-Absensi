@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\DailyRecap;
+use App\Models\DailyRecapExpenseSession;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
-use App\Models\Salary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -43,16 +44,31 @@ class EmployeeDashboardController extends Controller
                 round(($attendances->whereIn('status', ['present', 'late'])->count() / $attendances->count()) * 100) : 0,
         ];
 
+        $todayRecaps = DailyRecap::whereDate('recap_date', today())->get();
+        $monthRecaps = DailyRecap::whereBetween('recap_date', [$monthStart, $monthEnd])->get();
+        $openSession = DailyRecapExpenseSession::with(['dailyRecap'])
+            ->whereDate('recap_date', today())
+            ->whereNull('closed_at')
+            ->latest('opened_at')
+            ->latest('id')
+            ->first();
+
+        $recapStats = [
+            'today_recaps' => $todayRecaps->count(),
+            'today_expense_amount' => (int) $todayRecaps->sum('total_expense_amount'),
+            'today_qris_amount' => (int) $todayRecaps->sum('total_qris_amount'),
+            'today_remaining_cash_amount' => (int) $todayRecaps->sum('remaining_cash_amount'),
+            'month_recaps' => $monthRecaps->count(),
+            'month_expense_amount' => (int) $monthRecaps->sum('total_expense_amount'),
+            'month_qris_amount' => (int) $monthRecaps->sum('total_qris_amount'),
+            'has_open_session' => (bool) $openSession,
+            'open_session_recap_id' => $openSession?->daily_recap_id,
+        ];
+
         // Pending leave requests
         $pendingLeaves = LeaveRequest::where('employee_id', $employee->id)
             ->where('status', 'pending')
             ->count();
-
-        // Latest salary
-        $latestSalary = Salary::where('employee_id', $employee->id)
-            ->where('status', 'paid')
-            ->latest()
-            ->first();
 
         // Recent activities
         $recentActivities = [];
@@ -97,11 +113,27 @@ class EmployeeDashboardController extends Controller
             
             $recentActivities[] = [
                 'type' => 'leave',
-                'title' => 'Pengajuan Cuti ' . $leave->leave_type,
+                'title' => 'Pengajuan Cuti Libur',
                 'description' => 'Status: ' . ($statusMap[$leave->status] ?? $leave->status),
                 'time' => $leave->created_at->diffForHumans(),
                 'icon' => 'calendar',
                 'color' => $leave->status == 'pending' ? 'yellow' : ($leave->status == 'approved' ? 'green' : 'red')
+            ];
+        }
+
+        $recentRecaps = DailyRecap::with('employee.user')
+            ->latest()
+            ->limit(4)
+            ->get();
+
+        foreach ($recentRecaps as $recap) {
+            $recentActivities[] = [
+                'type' => 'recap',
+                'title' => 'Rekap Harian ' . optional($recap->recap_date)->format('d/m/Y'),
+                'description' => 'QRIS Rp ' . number_format((int) $recap->total_qris_amount, 0, ',', '.') . ' | Pengeluaran Rp ' . number_format((int) $recap->total_expense_amount, 0, ',', '.'),
+                'time' => $recap->updated_at->diffForHumans(),
+                'icon' => 'recap',
+                'color' => 'green',
             ];
         }
 
@@ -115,13 +147,16 @@ class EmployeeDashboardController extends Controller
             'employee' => $employee,
             'todayAttendance' => $todayAttendance,
             'stats' => $stats,
+            'recapStats' => $recapStats,
             'pendingLeaves' => $pendingLeaves,
-            'latestSalary' => $latestSalary,
             'recentActivities' => $recentActivities,
             'quickLinks' => [
                 'attendance' => route('employee.attendance.my'),
                 'leaveCreate' => route('employee.leaves.create'),
                 'calendar' => route('employee.calendar.index'),
+                'dailyRecap' => route('employee.daily-recaps.index'),
+                'expenses' => route('employee.daily-recap-expenses.index'),
+                'qris' => route('employee.qris-transactions.index'),
             ],
         ]);
     }

@@ -1,15 +1,17 @@
 <script setup>
-import { reactive } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { computed, reactive, ref, watch } from 'vue';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppShell from '../../../Components/AppShell.vue';
 import Card from '../../../Components/Card.vue';
 import ConfirmDialog from '../../../Components/ConfirmDialog.vue';
 import DataTable from '../../../Components/DataTable.vue';
+import Modal from '../../../Components/Modal.vue';
 import Pagination from '../../../Components/Pagination.vue';
 
 const props = defineProps({
     employeeShifts: { type: Object, required: true },
     employees: { type: Array, default: () => [] },
+    rollingEmployees: { type: Array, default: () => [] },
     stats: { type: Object, required: true },
     filters: { type: Object, default: () => ({}) },
     links: { type: Object, required: true },
@@ -25,6 +27,13 @@ const confirmState = reactive({
     title: '',
     message: '',
     action: null,
+});
+const rollingOpen = ref(false);
+const rollingForm = useForm({
+    from_employee_shift_id: '',
+    to_employee_shift_id: '',
+    start_date: '',
+    end_date: '',
 });
 
 const columns = [
@@ -48,6 +57,95 @@ const clearFilters = () => {
     filterForm.employee = '';
     filterForm.status = '';
     applyFilters();
+};
+
+const selectedFrom = computed(() =>
+    props.rollingEmployees.find((employee) => String(employee.assignment_id) === String(rollingForm.from_employee_shift_id))
+);
+
+const selectedTo = computed(() =>
+    props.rollingEmployees.find((employee) => String(employee.assignment_id) === String(rollingForm.to_employee_shift_id))
+);
+
+const rollingDateReady = computed(() => Boolean(rollingForm.start_date && rollingForm.end_date));
+
+const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+const dateRange = computed(() => {
+    if (!rollingDateReady.value) return [];
+
+    const dates = [];
+    const current = new Date(`${rollingForm.start_date}T00:00:00`);
+    const end = new Date(`${rollingForm.end_date}T00:00:00`);
+
+    if (Number.isNaN(current.getTime()) || Number.isNaN(end.getTime()) || current > end) {
+        return [];
+    }
+
+    while (current <= end) {
+        const year = current.getFullYear();
+        const month = String(current.getMonth() + 1).padStart(2, '0');
+        const dayOfMonth = String(current.getDate()).padStart(2, '0');
+        const date = `${year}-${month}-${dayOfMonth}`;
+
+        dates.push({
+            date,
+            day: dayNames[current.getDay()],
+        });
+        current.setDate(current.getDate() + 1);
+    }
+
+    return dates;
+});
+
+const assignmentActiveOn = (assignment, day) => {
+    const assignmentStart = assignment.start_date || '1000-01-01';
+    const assignmentEnd = assignment.end_date || '9999-12-31';
+    const inDateRange = assignmentStart <= day.date && assignmentEnd >= day.date;
+    const inDay = !assignment.day_of_week || assignment.day_of_week === day.day;
+
+    return inDateRange && inDay;
+};
+
+const assignmentMatchesRollingDates = (assignment) => {
+    if (!rollingDateReady.value) return false;
+
+    return dateRange.value.some((day) => assignmentActiveOn(assignment, day));
+};
+
+const rollingOptions = computed(() =>
+    props.rollingEmployees.filter((assignment) => assignmentMatchesRollingDates(assignment))
+);
+
+watch(
+    () => [rollingForm.start_date, rollingForm.end_date],
+    () => {
+        const optionIds = rollingOptions.value.map((assignment) => String(assignment.assignment_id));
+
+        if (!optionIds.includes(String(rollingForm.from_employee_shift_id))) {
+            rollingForm.from_employee_shift_id = '';
+        }
+
+        if (!optionIds.includes(String(rollingForm.to_employee_shift_id))) {
+            rollingForm.to_employee_shift_id = '';
+        }
+    }
+);
+
+const openRolling = () => {
+    rollingForm.clearErrors();
+    rollingForm.reset();
+    rollingOpen.value = true;
+};
+
+const submitRolling = () => {
+    rollingForm.post(props.links.rollingShift, {
+        preserveScroll: true,
+        onSuccess: () => {
+            rollingForm.reset();
+            rollingOpen.value = false;
+        },
+    });
 };
 
 const askDelete = (employeeShift) => {
@@ -75,9 +173,14 @@ const runConfirmed = () => {
                     <h1 class="text-2xl font-bold text-slate-950">Penugasan Shift Karyawan</h1>
                     <p class="mt-1 text-sm text-slate-500">Atur shift aktif, hari kerja khusus, periode berlaku, dan pola berulang.</p>
                 </div>
-                <Link :href="links.create" class="inline-flex justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
-                    Assign Shift
-                </Link>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" class="inline-flex justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800" @click="openRolling">
+                        Rolling Shift
+                    </button>
+                    <Link :href="links.create" class="inline-flex justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
+                        Assign Shift
+                    </Link>
+                </div>
             </div>
 
             <section class="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -191,5 +294,90 @@ const runConfirmed = () => {
             @cancel="confirmState.show = false"
             @confirm="runConfirmed"
         />
+
+        <Modal :show="rollingOpen" title="Rolling Shift" @close="rollingOpen = false">
+            <form class="space-y-5" @submit.prevent="submitRolling">
+                <p class="text-sm text-slate-500">
+                    Pilih tanggal dulu. Daftar karyawan hanya berisi yang punya shift aktif pada tanggal tersebut.
+                </p>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="text-sm font-semibold text-slate-700">Tanggal Mulai</span>
+                        <input v-model="rollingForm.start_date" type="date" required class="mt-1 w-full rounded-lg border-slate-200 px-4 py-2.5 text-sm focus:border-emerald-500 focus:ring-emerald-100">
+                        <span v-if="rollingForm.errors.start_date" class="mt-1 block text-xs font-semibold text-red-600">{{ rollingForm.errors.start_date }}</span>
+                    </label>
+
+                    <label class="block">
+                        <span class="text-sm font-semibold text-slate-700">Tanggal Selesai</span>
+                        <input v-model="rollingForm.end_date" type="date" required class="mt-1 w-full rounded-lg border-slate-200 px-4 py-2.5 text-sm focus:border-emerald-500 focus:ring-emerald-100">
+                        <span v-if="rollingForm.errors.end_date" class="mt-1 block text-xs font-semibold text-red-600">{{ rollingForm.errors.end_date }}</span>
+                    </label>
+                </div>
+
+                <p v-if="rollingDateReady && rollingOptions.length === 0" class="rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+                    Tidak ada karyawan yang memiliki shift aktif pada tanggal yang dipilih.
+                </p>
+                <p v-else-if="!rollingDateReady" class="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
+                    Pilih tanggal mulai dan selesai terlebih dahulu, lalu pilih karyawan yang akan rolling.
+                </p>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="text-sm font-semibold text-slate-700">Dari Karyawan</span>
+                        <select v-model="rollingForm.from_employee_shift_id" required class="mt-1 w-full rounded-lg border-slate-200 px-4 py-2.5 text-sm focus:border-emerald-500 focus:ring-emerald-100" :disabled="!rollingDateReady">
+                            <option value="">Pilih penugasan</option>
+                            <option
+                                v-for="employee in rollingOptions"
+                                :key="`from-${employee.assignment_id}`"
+                                :value="employee.assignment_id"
+                                :disabled="String(employee.assignment_id) === String(rollingForm.to_employee_shift_id)"
+                            >
+                                {{ employee.label }}
+                            </option>
+                        </select>
+                        <span v-if="rollingForm.errors.from_employee_shift_id" class="mt-1 block text-xs font-semibold text-red-600">{{ rollingForm.errors.from_employee_shift_id }}</span>
+                    </label>
+
+                    <label class="block">
+                        <span class="text-sm font-semibold text-slate-700">Ke Karyawan</span>
+                        <select v-model="rollingForm.to_employee_shift_id" required class="mt-1 w-full rounded-lg border-slate-200 px-4 py-2.5 text-sm focus:border-emerald-500 focus:ring-emerald-100" :disabled="!rollingDateReady">
+                            <option value="">Pilih penugasan</option>
+                            <option
+                                v-for="employee in rollingOptions"
+                                :key="`to-${employee.assignment_id}`"
+                                :value="employee.assignment_id"
+                                :disabled="String(employee.assignment_id) === String(rollingForm.from_employee_shift_id)"
+                            >
+                                {{ employee.label }}
+                            </option>
+                        </select>
+                        <span v-if="rollingForm.errors.to_employee_shift_id" class="mt-1 block text-xs font-semibold text-red-600">{{ rollingForm.errors.to_employee_shift_id }}</span>
+                    </label>
+                </div>
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <div class="rounded-lg bg-slate-50 p-3">
+                        <p class="text-xs font-bold uppercase text-slate-400">Shift saat ini</p>
+                        <p class="mt-1 font-bold text-slate-900">{{ selectedFrom?.employee_name || '-' }}</p>
+                        <p class="text-sm text-slate-500">{{ selectedFrom ? `${selectedFrom.shift_name} (${selectedFrom.shift_time || '-'})` : 'Pilih penugasan pertama' }}</p>
+                        <p v-if="selectedFrom" class="mt-1 text-xs text-slate-400">{{ selectedFrom.day_label }} | {{ selectedFrom.period_label }}</p>
+                    </div>
+                    <div class="rounded-lg bg-slate-50 p-3">
+                        <p class="text-xs font-bold uppercase text-slate-400">Ditukar dengan</p>
+                        <p class="mt-1 font-bold text-slate-900">{{ selectedTo?.employee_name || '-' }}</p>
+                        <p class="text-sm text-slate-500">{{ selectedTo ? `${selectedTo.shift_name} (${selectedTo.shift_time || '-'})` : 'Pilih penugasan kedua' }}</p>
+                        <p v-if="selectedTo" class="mt-1 text-xs text-slate-400">{{ selectedTo.day_label }} | {{ selectedTo.period_label }}</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                    <button type="button" class="rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-200" @click="rollingOpen = false">Batal</button>
+                    <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" :disabled="rollingForm.processing || !rollingForm.from_employee_shift_id || !rollingForm.to_employee_shift_id || !rollingForm.start_date || !rollingForm.end_date">
+                        {{ rollingForm.processing ? 'Memproses...' : 'Buat Rolling Sementara' }}
+                    </button>
+                </div>
+            </form>
+        </Modal>
     </AppShell>
 </template>

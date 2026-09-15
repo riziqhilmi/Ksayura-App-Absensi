@@ -7,15 +7,30 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ProfileController extends Controller
 {
-    public function edit(Request $request): View
+    public function edit(Request $request): Response
     {
-        return view('profile.edit', [
-            'user' => $request->user(),
+        $user = $request->user();
+
+        return Inertia::render('Profile/Edit', [
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'address' => $user->address,
+                'role' => $user->role,
+                'avatar_initial' => $user->avatar_initial,
+            ],
+            'links' => [
+                'profile' => route('profile.update'),
+                'password' => route('password.update'),
+                'destroy' => route('profile.destroy'),
+            ],
         ]);
     }
 
@@ -50,40 +65,4 @@ class ProfileController extends Controller
         return Redirect::to('/');
     }
 
-    // Update profile photo
-    public function updatePhoto(Request $request)
-    {
-        $request->validate([
-            'profile_photo' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
-
-        $user = $request->user();
-
-        if ($user->profile_photo) {
-            Storage::disk('public')->delete('profiles/' . $user->profile_photo);
-        }
-
-        $file = $request->file('profile_photo');
-        $filename = 'user_' . $user->id . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-        $file->storeAs('profiles', $filename, 'public');
-
-        $user->update([
-            'profile_photo' => $filename,
-        ]);
-
-        return redirect()->route('profile.edit')->with('status', 'photo-updated');
-    }
-
-    // Delete profile photo
-    public function deletePhoto(Request $request)
-    {
-        $user = $request->user();
-
-        if ($user->profile_photo) {
-            Storage::disk('public')->delete('profiles/' . $user->profile_photo);
-            $user->update(['profile_photo' => null]);
-        }
-
-        return redirect()->route('profile.edit')->with('status', 'photo-deleted');
-    }
 }

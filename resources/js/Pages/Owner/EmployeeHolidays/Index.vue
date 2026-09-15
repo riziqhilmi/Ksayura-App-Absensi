@@ -53,7 +53,7 @@ const badgeClass = (status) => ({
                 <div>
                     <p class="text-sm font-semibold text-emerald-700">Owner</p>
                     <h1 class="text-2xl font-bold text-slate-950">Hari Libur Karyawan</h1>
-                    <p class="mt-1 text-sm text-slate-500">Kelola jadwal libur personal, libur perusahaan, dan cuti yang dibayar.</p>
+                    <p class="mt-1 text-sm text-slate-500">Kelola jadwal libur personal, libur perusahaan, dan cuti karyawan.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <Link :href="links.calendar" class="rounded-lg bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-100">Kalender</Link>

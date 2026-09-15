@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\CompanySettingController;
+use App\Http\Controllers\DailyRecapController;
+use App\Http\Controllers\DailyRecapExpenseController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeDashboardController;
 use App\Http\Controllers\EmployeeHolidayController;
@@ -11,6 +13,7 @@ use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\OwnerDashboardController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\QrisTransactionController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\ShiftController;
 use Illuminate\Http\Request;
@@ -39,8 +42,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    Route::post('/profile/photo', [ProfileController::class, 'updatePhoto'])->name('profile.photo.update');
-    Route::delete('/profile/photo', [ProfileController::class, 'deletePhoto'])->name('profile.photo.delete');
 });
 
 /*
@@ -65,12 +66,22 @@ Route::middleware(['auth', 'verified'])->prefix('owner')->name('owner.')->group(
     Route::patch('/attendance/{attendance}/status', [AttendanceController::class, 'updateStatus'])->name('attendance.update-status');
     Route::get('/attendance/export', [AttendanceController::class, 'export'])->name('attendance.export');
 
+    // Daily Recap Management
+    Route::get('/daily-recaps', [DailyRecapController::class, 'ownerIndex'])->name('daily-recaps.index');
+    Route::get('/daily-recaps/qris/{transaction}/evidence', [DailyRecapController::class, 'showQrisEvidence'])->name('daily-recaps.qris-evidence');
+    Route::get('/daily-recaps/{dailyRecap}', [DailyRecapController::class, 'ownerShow'])->name('daily-recaps.show');
+
+    // QRIS Management
+    Route::get('/qris-transactions', [QrisTransactionController::class, 'ownerIndex'])->name('qris-transactions.index');
+    Route::get('/qris-transactions/{transaction}/evidence', [QrisTransactionController::class, 'showEvidence'])->name('qris-transactions.evidence');
+
     // Shift Management (Master Shift)
     Route::resource('shifts', ShiftController::class);
     Route::patch('/shifts/{shift}/status', [ShiftController::class, 'updateStatus'])->name('shifts.update-status');
     Route::get('/shifts/{shift}/toggle-status', [ShiftController::class, 'toggleStatus'])->name('shifts.toggle-status');
 
     // Employee Shift Management (Assign Shift to Employee)
+    Route::post('/employee-shifts/rolling-shift', [EmployeeShiftController::class, 'rollingShift'])->name('employee-shifts.rolling-shift');
     Route::resource('employee-shifts', EmployeeShiftController::class)->except(['show']);
     Route::patch('/employee-shifts/{employeeShift}/status', [EmployeeShiftController::class, 'updateStatus'])->name('employee-shifts.update-status');
 
@@ -121,6 +132,24 @@ Route::middleware(['auth', 'verified'])->prefix('employee')->name('employee.')->
     Route::post('/attendance/check-out', [AttendanceController::class, 'checkOut'])->name('attendance.check-out');
     Route::get('/attendance/today-status', [AttendanceController::class, 'getTodayStatus'])->name('attendance.today-status');
 
+    // Daily Recap
+    Route::get('/daily-recap-expenses', [DailyRecapExpenseController::class, 'myIndex'])->name('daily-recap-expenses.index');
+    Route::post('/daily-recap-expenses/open', [DailyRecapExpenseController::class, 'open'])->name('daily-recap-expenses.open');
+    Route::post('/daily-recap-expenses/close', [DailyRecapExpenseController::class, 'close'])->name('daily-recap-expenses.close');
+    Route::post('/daily-recap-expenses', [DailyRecapExpenseController::class, 'store'])->name('daily-recap-expenses.store');
+    Route::delete('/daily-recap-expenses/{expense}', [DailyRecapExpenseController::class, 'destroy'])->name('daily-recap-expenses.destroy');
+    Route::get('/daily-recaps', [DailyRecapController::class, 'myIndex'])->name('daily-recaps.index');
+    Route::get('/daily-recaps/create', [DailyRecapController::class, 'create'])->name('daily-recaps.create');
+    Route::post('/daily-recaps', [DailyRecapController::class, 'store'])->name('daily-recaps.store');
+    Route::get('/daily-recaps/qris/{transaction}/evidence', [DailyRecapController::class, 'showQrisEvidence'])->name('daily-recaps.qris-evidence');
+    Route::get('/daily-recaps/{dailyRecap}', [DailyRecapController::class, 'myShow'])->name('daily-recaps.show');
+    Route::get('/daily-recaps/{dailyRecap}/edit', [DailyRecapController::class, 'edit'])->name('daily-recaps.edit');
+
+    // QRIS Transactions
+    Route::get('/qris-transactions', [QrisTransactionController::class, 'myIndex'])->name('qris-transactions.index');
+    Route::post('/qris-transactions', [QrisTransactionController::class, 'store'])->name('qris-transactions.store');
+    Route::delete('/qris-transactions/{transaction}', [QrisTransactionController::class, 'destroy'])->name('qris-transactions.destroy');
+    Route::get('/qris-transactions/{transaction}/evidence', [QrisTransactionController::class, 'showEvidence'])->name('qris-transactions.evidence');
 
     // Calendar
     Route::get('/calendar', [EmployeeCalendarController::class, 'index'])->name('calendar.index');
@@ -133,6 +162,7 @@ Route::middleware(['auth', 'verified'])->prefix('employee')->name('employee.')->
     Route::get('/leaves/create', [LeaveRequestController::class, 'create'])->name('leaves.create');
     Route::post('/leaves', [LeaveRequestController::class, 'store'])->name('leaves.store');
     Route::get('/leaves/stats', [LeaveRequestController::class, 'myStats'])->name('leaves.stats');
+    Route::get('/leaves/team-calendar', [LeaveRequestController::class, 'teamCalendar'])->name('leaves.team-calendar');
     Route::post('/leaves/check-availability', [LeaveRequestController::class, 'checkAvailability'])->name('leaves.check-availability');
     Route::get('/leaves/{leave}', [LeaveRequestController::class, 'myShow'])->name('leaves.show');
     Route::delete('/leaves/{leave}', [LeaveRequestController::class, 'destroy'])->name('leaves.destroy');

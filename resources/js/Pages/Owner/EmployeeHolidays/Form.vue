@@ -14,8 +14,7 @@ const form = useForm({
     employee_id: props.holiday?.employee_id || '',
     date: props.holiday?.date || '',
     reason: props.holiday?.reason || '',
-    type: props.holiday?.type || 'annual',
-    is_paid: props.holiday?.is_paid ?? true,
+    type: 'company',
     status: props.holiday?.status || 'scheduled',
     notes: props.holiday?.notes || '',
 });
@@ -70,11 +69,6 @@ const submit = () => {
                             </select>
                         </div>
                     </div>
-
-                    <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                        <input v-model="form.is_paid" type="checkbox" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
-                        Libur dibayar
-                    </label>
 
                     <div>
                         <label class="text-sm font-semibold text-slate-700">Alasan</label>

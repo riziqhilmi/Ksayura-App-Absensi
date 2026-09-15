@@ -31,14 +31,7 @@ class EmployeeHoliday extends Model
 
     public function getTypeLabel()
     {
-        $types = [
-            'annual' => 'Cuti Tahunan',
-            'sick' => 'Cuti Sakit',
-            'personal' => 'Cuti Pribadi',
-            'company' => 'Libur Perusahaan',
-            'other' => 'Lainnya',
-        ];
-        return $types[$this->type] ?? $this->type;
+        return 'Libur';
     }
 
     public function getStatusLabel()

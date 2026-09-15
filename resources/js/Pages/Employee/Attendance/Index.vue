@@ -753,7 +753,7 @@ const checkLocationProximity =
                     'Lokasi valid';
 
                 locationState.detail =
-                    `Dalam radius kantor (${data.distance} meter)`;
+                    `Dalam radius ${data.location_name || 'lokasi absensi'} (${data.distance} meter)`;
 
                 return;
             }
@@ -763,10 +763,10 @@ const checkLocationProximity =
                 'Di luar radius';
 
             locationState.detail =
-                `Jarak ${data.distance} meter dari kantor, maksimal ${data.radius} meter`;
+                `Jarak ${data.distance} meter dari ${data.location_name || 'lokasi absensi'}, maksimal ${data.radius} meter`;
         } catch (error) {
             locationState.detail =
-                'Gagal mengecek jarak ke kantor';
+                'Gagal mengecek jarak ke lokasi absensi';
         }
     };
 
@@ -1031,7 +1031,7 @@ const errorText = (
         data.distance !== undefined
     ) {
         message +=
-            ` Jarak Anda ${data.distance} meter dari kantor. Maksimal ${data.max_distance} meter.`;
+            ` Jarak Anda ${data.distance} meter dari ${data.location_name || 'lokasi absensi'}. Maksimal ${data.max_distance} meter.`;
     }
 
 
@@ -1251,8 +1251,8 @@ const handlePrimaryAction =
 
         confirmState.message =
             type === 'in'
-                ? 'Pastikan Anda berada di lokasi kantor sebelum melakukan check in.'
-                : 'Pastikan Anda berada di lokasi kantor sebelum melakukan check out.';
+                ? 'Pastikan Anda berada di lokasi kantor atau pasar sebelum melakukan check in.'
+                : 'Pastikan Anda berada di lokasi kantor atau pasar sebelum melakukan check out.';
 
 
         confirmState.confirmText =
@@ -1898,16 +1898,17 @@ onUnmounted(() => {
 
 
                                 <p>
-                                    Pastikan Anda berada di lokasi kantor.
+                                    Pastikan Anda berada di lokasi kantor atau pasar.
 
                                     <span
                                         class="font-semibold"
                                     >
-                                        Lokasi kantor:
+                                        Lokasi terdekat:
                                     </span>
 
                                     {{
-                                        officeLocation.address
+                                        locationState.proximity?.location_name
+                                        || officeLocation.address
                                         || 'Belum diatur'
                                     }}
                                 </p>

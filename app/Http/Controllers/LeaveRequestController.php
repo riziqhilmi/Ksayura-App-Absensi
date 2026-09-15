@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\EmployeeHoliday;
 use App\Models\LeaveRequest;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -232,26 +234,197 @@ class LeaveRequestController extends Controller
 
     private function leaveTypeLabel(?string $type): string
     {
-        return [
-            'annual' => 'Cuti Tahunan',
-            'sick' => 'Sakit',
-            'personal' => 'Keperluan Pribadi',
-            'maternity' => 'Melahirkan',
-            'other' => 'Lainnya',
-        ][$type] ?? ucfirst((string) $type);
+        return 'Cuti Libur';
     }
 
     private function leaveOptions(): array
     {
         return [
             'types' => [
-                ['value' => 'annual', 'label' => 'Cuti Tahunan'],
-                ['value' => 'sick', 'label' => 'Sakit'],
-                ['value' => 'personal', 'label' => 'Keperluan Pribadi'],
-                ['value' => 'maternity', 'label' => 'Melahirkan'],
-                ['value' => 'other', 'label' => 'Lainnya'],
+                ['value' => 'annual', 'label' => 'Cuti Libur'],
             ],
         ];
+    }
+
+    private function buildTeamLeaveCalendar(Employee $employee, Request $request): array
+    {
+        $targetMonth = Carbon::createFromDate(
+            (int) ($request->year ?? now()->year),
+            (int) ($request->month ?? now()->month),
+            1
+        );
+        $startOfMonth = $targetMonth->copy()->startOfMonth();
+        $endOfMonth = $targetMonth->copy()->endOfMonth();
+
+        $leaves = LeaveRequest::with('employee.user')
+            ->where('employee_id', '!=', $employee->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereDate('start_date', '<=', $endOfMonth->toDateString())
+            ->whereDate('end_date', '>=', $startOfMonth->toDateString())
+            ->get();
+
+        $ownerHolidays = EmployeeHoliday::with('employee.user')
+            ->where('employee_id', '!=', $employee->id)
+            ->whereIn('status', ['scheduled', 'taken'])
+            ->whereBetween('date', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
+            ->get();
+
+        $entriesByDate = [];
+
+        foreach ($leaves as $leave) {
+            $rangeStart = Carbon::parse($leave->start_date)->max($startOfMonth);
+            $rangeEnd = Carbon::parse($leave->end_date)->min($endOfMonth);
+
+            for ($date = $rangeStart->copy(); $date->lte($rangeEnd); $date->addDay()) {
+                $dateKey = $date->toDateString();
+                $entriesByDate[$dateKey] ??= [];
+                $entriesByDate[$dateKey][] = [
+                    'employee_id' => $leave->employee_id,
+                    'employee_name' => $leave->employee?->user?->name ?? 'Karyawan',
+                    'status' => $leave->status,
+                    'source' => 'leave_request',
+                ];
+            }
+        }
+
+        foreach ($ownerHolidays as $holiday) {
+            $dateKey = $holiday->date->toDateString();
+            $entriesByDate[$dateKey] ??= [];
+            $entriesByDate[$dateKey][] = [
+                'employee_id' => $holiday->employee_id,
+                'employee_name' => $holiday->employee?->user?->name ?? 'Karyawan',
+                'status' => 'approved',
+                'source' => 'owner_holiday',
+            ];
+        }
+
+        $calendarData = [];
+        $stats = [
+            'empty_days' => 0,
+            'pending_days' => 0,
+            'approved_days' => 0,
+        ];
+
+        for ($day = 1; $day <= $targetMonth->daysInMonth; $day++) {
+            $date = Carbon::createFromDate($targetMonth->year, $targetMonth->month, $day);
+            $dateKey = $date->toDateString();
+            $entries = collect($entriesByDate[$dateKey] ?? [])
+                ->groupBy('employee_id')
+                ->map(function ($items) {
+                    $approved = $items->firstWhere('status', 'approved');
+                    return $approved ?: $items->first();
+                })
+                ->sortBy([
+                    ['status', 'asc'],
+                    ['employee_name', 'asc'],
+                ])
+                ->values()
+                ->all();
+
+            $status = 'empty';
+            if (collect($entries)->contains('status', 'approved')) {
+                $status = 'approved';
+                $stats['approved_days']++;
+            } elseif (count($entries) > 0) {
+                $status = 'pending';
+                $stats['pending_days']++;
+            } else {
+                $stats['empty_days']++;
+            }
+
+            $calendarData[] = [
+                'date' => $dateKey,
+                'day' => $day,
+                'day_name' => $date->translatedFormat('D'),
+                'is_today' => $dateKey === now()->toDateString(),
+                'is_weekend' => $date->isWeekend(),
+                'status' => $status,
+                'entries' => $entries,
+            ];
+        }
+
+        $previous = $targetMonth->copy()->subMonth();
+        $next = $targetMonth->copy()->addMonth();
+
+        return [
+            'calendarData' => $calendarData,
+            'month' => $targetMonth->month,
+            'year' => $targetMonth->year,
+            'monthName' => $targetMonth->translatedFormat('F Y'),
+            'firstDayOfMonth' => $targetMonth->dayOfWeek,
+            'stats' => $stats,
+            'links' => [
+                'index' => route('employee.leaves.team-calendar'),
+                'previous' => route('employee.leaves.team-calendar', [
+                    'month' => $previous->month,
+                    'year' => $previous->year,
+                ]),
+                'today' => route('employee.leaves.team-calendar', [
+                    'month' => now()->month,
+                    'year' => now()->year,
+                ]),
+                'next' => route('employee.leaves.team-calendar', [
+                    'month' => $next->month,
+                    'year' => $next->year,
+                ]),
+                'create' => route('employee.leaves.create'),
+                'leaves' => route('employee.leaves.my'),
+            ],
+        ];
+    }
+
+    private function teamLeaveConflicts(Employee $employee, string $startDate, string $endDate): array
+    {
+        $leaveConflicts = LeaveRequest::with('employee.user')
+            ->where('employee_id', '!=', $employee->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where(function($query) use ($startDate, $endDate) {
+                $query->whereBetween('start_date', [$startDate, $endDate])
+                      ->orWhereBetween('end_date', [$startDate, $endDate])
+                      ->orWhere(function($q) use ($startDate, $endDate) {
+                          $q->where('start_date', '<=', $startDate)
+                            ->where('end_date', '>=', $endDate);
+                      });
+            })
+            ->get()
+            ->map(fn (LeaveRequest $leave) => [
+                'employee_name' => $leave->employee?->user?->name ?? 'Karyawan',
+                'status' => $leave->status,
+                'start_date' => optional($leave->start_date)->format('Y-m-d'),
+                'end_date' => optional($leave->end_date)->format('Y-m-d'),
+                'source' => 'leave_request',
+            ])
+            ->values()
+            ->all();
+
+        $holidayConflicts = EmployeeHoliday::with('employee.user')
+            ->where('employee_id', '!=', $employee->id)
+            ->whereIn('status', ['scheduled', 'taken'])
+            ->whereBetween('date', [$startDate, $endDate])
+            ->get()
+            ->map(fn (EmployeeHoliday $holiday) => [
+                'employee_name' => $holiday->employee?->user?->name ?? 'Karyawan',
+                'status' => 'approved',
+                'start_date' => optional($holiday->date)->format('Y-m-d'),
+                'end_date' => optional($holiday->date)->format('Y-m-d'),
+                'source' => 'owner_holiday',
+            ])
+            ->values()
+            ->all();
+
+        return collect($leaveConflicts)
+            ->merge($holidayConflicts)
+            ->groupBy('employee_name')
+            ->map(function ($items) {
+                $approved = $items->firstWhere('status', 'approved');
+                return $approved ?: $items->first();
+            })
+            ->sortBy([
+                ['status', 'asc'],
+                ['employee_name', 'asc'],
+            ])
+            ->values()
+            ->all();
     }
 
     // ==================== EMPLOYEE METHODS ====================
@@ -303,8 +476,20 @@ class LeaveRequestController extends Controller
             'links' => [
                 'index' => route('employee.leaves.my'),
                 'create' => route('employee.leaves.create'),
+                'teamCalendar' => route('employee.leaves.team-calendar'),
             ],
         ]);
+    }
+
+    public function teamCalendar(Request $request)
+    {
+        $employee = Employee::where('user_id', Auth::id())->first();
+
+        if (!$employee) {
+            return redirect()->back()->with('error', 'Data karyawan tidak ditemukan');
+        }
+
+        return Inertia::render('Employee/Leaves/TeamCalendar', $this->buildTeamLeaveCalendar($employee, $request));
     }
 
     /**
@@ -330,6 +515,7 @@ class LeaveRequestController extends Controller
                 'index' => route('employee.leaves.my'),
                 'store' => route('employee.leaves.store'),
                 'checkAvailability' => route('employee.leaves.check-availability'),
+                'teamCalendar' => route('employee.leaves.team-calendar'),
             ],
             'defaults' => [
                 'start_date' => now()->addDay()->toDateString(),
@@ -350,7 +536,7 @@ class LeaveRequestController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'leave_type' => 'required|string|max:50|in:annual,sick,personal,maternity,other',
+            'leave_type' => 'required|string|max:50|in:annual',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'required|date|after_or_equal:start_date',
             'reason' => 'required|string|max:500',
@@ -502,7 +688,7 @@ class LeaveRequestController extends Controller
             return response()->json(['error' => 'Data karyawan tidak ditemukan'], 404);
         }
 
-        // Check if there's any pending or approved leave in the date range
+        // Check if current employee already has pending or approved leave in the date range
         $conflict = LeaveRequest::where('employee_id', $employee->id)
             ->whereIn('status', ['pending', 'approved'])
             ->where(function($query) use ($request) {
@@ -517,11 +703,15 @@ class LeaveRequestController extends Controller
 
         // Check if date is in the past
         $isPast = \Carbon\Carbon::parse($request->start_date)->isPast();
+        $teamConflicts = $this->teamLeaveConflicts($employee, $request->start_date, $request->end_date);
 
         return response()->json([
             'available' => !$conflict && !$isPast,
             'has_conflict' => $conflict,
             'is_past' => $isPast,
+            'can_submit' => !$conflict && !$isPast,
+            'has_team_conflict' => count($teamConflicts) > 0,
+            'team_conflicts' => $teamConflicts,
         ]);
     }
 }
