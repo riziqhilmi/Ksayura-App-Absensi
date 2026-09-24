@@ -159,10 +159,19 @@ class DailyRecapExpenseController extends Controller
                 ->with('error', 'Buka pengeluaran shift terlebih dahulu sebelum menambah item.');
         }
 
+        $normalizedName = $this->normalizeExpenseName($validated['name']);
+
+        if ($this->hasDuplicateExpenseName($session, $normalizedName)) {
+            return back()
+                ->withErrors(['name' => 'Barang/pengeluaran tersebut sudah terinput pada rekap shift ini.'])
+                ->withInput();
+        }
+
         $recap = $session->dailyRecap;
         $recap->expenses()->create([
             'daily_recap_expense_session_id' => $session->id,
-            'name' => $validated['name'],
+            'created_by_employee_id' => $employee->id,
+            'name' => $normalizedName,
             'expense_time' => null,
             'amount' => (int) $validated['amount'],
             'sort_order' => $session->expenses()->count(),
@@ -174,14 +183,56 @@ class DailyRecapExpenseController extends Controller
             ->with('success', 'Pengeluaran barang berhasil ditambahkan.');
     }
 
+    public function update(Request $request, DailyRecapExpense $expense)
+    {
+        $employee = $this->currentEmployee();
+        $expense->loadMissing(['dailyRecap', 'expenseSession']);
+        $recap = $expense->dailyRecap;
+
+        abort_unless($employee && $recap, 403);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'amount' => ['required', 'integer', 'min:1', 'max:999999999999'],
+        ]);
+
+        $session = $expense->expenseSession ?: $this->expenseSessionForDate($recap->recap_date->toDateString());
+        $date = $recap->recap_date->toDateString();
+
+        if (!$session || !$this->canEditExpenses($session)) {
+            return redirect()
+                ->route('employee.daily-recap-expenses.index', ['date' => $date])
+                ->with('error', 'Pengeluaran shift sudah ditutup atau belum dibuka.');
+        }
+
+        $normalizedName = $this->normalizeExpenseName($validated['name']);
+
+        if ($this->hasDuplicateExpenseName($session, $normalizedName, $expense)) {
+            return back()
+                ->withErrors(['name' => 'Barang/pengeluaran tersebut sudah terinput pada rekap shift ini.'])
+                ->withInput();
+        }
+
+        $expense->forceFill([
+            'name' => $normalizedName,
+            'amount' => (int) $validated['amount'],
+        ])->save();
+        $recap->refreshExpenseTotals();
+
+        return redirect()
+            ->route('employee.daily-recap-expenses.index', ['date' => $date])
+            ->with('success', 'Pengeluaran barang berhasil diperbarui.');
+    }
+
     public function destroy(DailyRecapExpense $expense)
     {
         $employee = $this->currentEmployee();
         $expense->loadMissing(['dailyRecap', 'expenseSession']);
         $recap = $expense->dailyRecap;
-        $session = $expense->expenseSession ?: $this->expenseSessionForDate($recap?->recap_date?->toDateString() ?? '');
 
         abort_unless($employee && $recap, 403);
+
+        $session = $expense->expenseSession ?: $this->expenseSessionForDate($recap->recap_date->toDateString());
 
         $date = $recap->recap_date->toDateString();
         if (!$session || !$this->canEditExpenses($session)) {
@@ -210,11 +261,34 @@ class DailyRecapExpenseController extends Controller
 
     private function expenseSessionForDate(string $date): ?DailyRecapExpenseSession
     {
-        return DailyRecapExpenseSession::with(['dailyRecap', 'openedBy.user', 'closedBy.user', 'expenses'])
+        return DailyRecapExpenseSession::with(['dailyRecap', 'openedBy.user', 'closedBy.user', 'expenses.createdBy.user'])
             ->whereDate('recap_date', $date)
             ->latest('opened_at')
             ->latest('id')
             ->first();
+    }
+
+    private function normalizeExpenseName(string $name): string
+    {
+        return preg_replace('/\s+/u', ' ', trim($name)) ?? trim($name);
+    }
+
+    private function normalizedExpenseNameKey(string $name): string
+    {
+        return mb_strtolower($this->normalizeExpenseName($name));
+    }
+
+    private function hasDuplicateExpenseName(
+        DailyRecapExpenseSession $session,
+        string $name,
+        ?DailyRecapExpense $ignoredExpense = null
+    ): bool {
+        $normalizedName = $this->normalizedExpenseNameKey($name);
+
+        return $session->expenses()
+            ->when($ignoredExpense, fn ($query) => $query->whereKeyNot($ignoredExpense->getKey()))
+            ->get(['id', 'name'])
+            ->contains(fn (DailyRecapExpense $expense) => $this->normalizedExpenseNameKey($expense->name) === $normalizedName);
     }
 
     private function employeePayload(Employee $employee): array
@@ -235,8 +309,11 @@ class DailyRecapExpenseController extends Controller
             'id' => $expense->id,
             'name' => $expense->name,
             'amount' => (int) $expense->amount,
+            'created_by' => $expense->createdBy ? $this->employeePayload($expense->createdBy) : null,
+            'created_by_name' => $expense->createdBy?->user?->name,
             'created_at' => optional($expense->created_at)->format('d/m/Y H:i'),
             'urls' => [
+                'update' => route('employee.daily-recap-expenses.update', $expense),
                 'destroy' => route('employee.daily-recap-expenses.destroy', $expense),
             ],
         ];

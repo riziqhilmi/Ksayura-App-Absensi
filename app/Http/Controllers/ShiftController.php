@@ -43,15 +43,7 @@ class ShiftController extends Controller
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
-            'break_start' => 'nullable|date_format:H:i|after:start_time',
-            'break_end' => 'nullable|date_format:H:i|after:break_start',
-            'grace_period' => 'required|integer|min:0|max:60',
-            'notes' => 'nullable|string|max:500',
-        ]);
+        $validator = $this->shiftValidator($request);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
@@ -97,16 +89,7 @@ class ShiftController extends Controller
 
     public function update(Request $request, Shift $shift)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
-            'break_start' => 'nullable|date_format:H:i|after:start_time',
-            'break_end' => 'nullable|date_format:H:i|after:break_start',
-            'grace_period' => 'required|integer|min:0|max:60',
-            'status' => 'required|in:active,inactive',
-            'notes' => 'nullable|string|max:500',
-        ]);
+        $validator = $this->shiftValidator($request, true);
 
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
@@ -181,8 +164,8 @@ class ShiftController extends Controller
             'grace_period' => $shift->grace_period,
             'status' => $shift->status,
             'notes' => $shift->notes,
-            'duration_hours' => $startTime && $endTime ? Carbon::parse($startTime)->diffInHours(Carbon::parse($endTime)) : 0,
-            'break_duration_minutes' => $breakStart && $breakEnd ? Carbon::parse($breakStart)->diffInMinutes(Carbon::parse($breakEnd)) : null,
+            'duration_hours' => $startTime && $endTime ? round($this->minutesBetweenShiftTimes($startTime, $endTime) / 60, 2) : 0,
+            'break_duration_minutes' => $breakStart && $breakEnd ? $this->minutesBetweenShiftTimes($breakStart, $breakEnd) : null,
             'created_at' => optional($shift->created_at)->format('d F Y H:i'),
             'updated_at' => optional($shift->updated_at)->format('d F Y H:i'),
             'urls' => [
@@ -197,5 +180,87 @@ class ShiftController extends Controller
     private function formatTime($value): ?string
     {
         return $value ? Carbon::parse($value)->format('H:i') : null;
+    }
+
+    private function shiftValidator(Request $request, bool $isUpdate = false)
+    {
+        $rules = [
+            'name' => 'required|string|max:255',
+            'start_time' => 'required|date_format:H:i',
+            'end_time' => 'required|date_format:H:i',
+            'break_start' => 'nullable|date_format:H:i',
+            'break_end' => 'nullable|date_format:H:i',
+            'grace_period' => 'required|integer|min:0|max:60',
+            'notes' => 'nullable|string|max:500',
+        ];
+
+        if ($isUpdate) {
+            $rules['status'] = 'required|in:active,inactive';
+        }
+
+        $validator = Validator::make($request->all(), $rules);
+
+        $validator->after(function ($validator) use ($request) {
+            if (!$request->filled(['start_time', 'end_time'])) {
+                return;
+            }
+
+            $shiftMinutes = $this->minutesBetweenShiftTimes($request->start_time, $request->end_time);
+
+            if ($shiftMinutes <= 0) {
+                $validator->errors()->add('end_time', 'Jam selesai shift tidak valid.');
+                return;
+            }
+
+            if ($request->filled('break_end') && !$request->filled('break_start')) {
+                $validator->errors()->add('break_start', 'Jam mulai istirahat wajib diisi jika jam selesai istirahat diisi.');
+                return;
+            }
+
+            if (!$request->filled('break_start')) {
+                return;
+            }
+
+            $breakStartOffset = $this->minutesFromShiftStart($request->start_time, $request->break_start);
+
+            if ($breakStartOffset > $shiftMinutes) {
+                $validator->errors()->add('break_start', 'Jam mulai istirahat harus berada dalam jam shift.');
+            }
+
+            if ($request->filled('break_end')) {
+                $breakEndOffset = $this->minutesFromShiftStart($request->start_time, $request->break_end);
+
+                if ($breakEndOffset <= $breakStartOffset) {
+                    $validator->errors()->add('break_end', 'Jam selesai istirahat harus setelah jam mulai istirahat.');
+                }
+
+                if ($breakEndOffset > $shiftMinutes) {
+                    $validator->errors()->add('break_end', 'Jam selesai istirahat harus berada dalam jam shift.');
+                }
+            }
+        });
+
+        return $validator;
+    }
+
+    private function minutesBetweenShiftTimes(string $startTime, string $endTime): int
+    {
+        $minutes = $this->timeToMinutes($endTime) - $this->timeToMinutes($startTime);
+
+        return $minutes <= 0 ? $minutes + 1440 : $minutes;
+    }
+
+    private function minutesFromShiftStart(string $shiftStart, string $time): int
+    {
+        $minutes = $this->timeToMinutes($time) - $this->timeToMinutes($shiftStart);
+
+        return $minutes < 0 ? $minutes + 1440 : $minutes;
+    }
+
+    private function timeToMinutes(string $time): int
+    {
+        [$hours, $minutes] = array_map('intval', explode(':', $time));
+
+        return ($hours * 60) + $minutes;
     }
 }

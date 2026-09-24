@@ -18,7 +18,43 @@ class EmployeeDashboardController extends Controller
         $employee = Employee::with('user')->where('user_id', Auth::id())->first();
         
         if (!$employee) {
-            return redirect()->back()->with('error', 'Data karyawan tidak ditemukan');
+            return Inertia::render('Employee/Dashboard', [
+                'employee' => [
+                    'user' => Auth::user(),
+                    'position' => 'Staff',
+                    'employee_code' => '-',
+                ],
+                'todayAttendance' => null,
+                'stats' => [
+                    'total_days' => now()->day,
+                    'present' => 0,
+                    'late' => 0,
+                    'absent' => 0,
+                    'leave' => 0,
+                    'attendance_percentage' => 0,
+                ],
+                'recapStats' => [
+                    'today_recaps' => 0,
+                    'today_expense_amount' => 0,
+                    'today_qris_amount' => 0,
+                    'today_remaining_cash_amount' => 0,
+                    'month_recaps' => 0,
+                    'month_expense_amount' => 0,
+                    'month_qris_amount' => 0,
+                    'has_open_session' => false,
+                    'open_session_recap_id' => null,
+                ],
+                'pendingLeaves' => 0,
+                'recentActivities' => [],
+                'quickLinks' => [
+                    'attendance' => route('employee.attendance.my'),
+                    'leaveCreate' => route('employee.leaves.create'),
+                    'calendar' => route('employee.calendar.index'),
+                    'dailyRecap' => route('employee.daily-recaps.index'),
+                    'expenses' => route('employee.daily-recap-expenses.index'),
+                    'qris' => route('employee.qris-transactions.index'),
+                ],
+            ]);
         }
 
         // Today's attendance status

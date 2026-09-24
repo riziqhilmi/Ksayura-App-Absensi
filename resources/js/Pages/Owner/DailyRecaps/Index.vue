@@ -36,6 +36,12 @@ const applyFilter = () => {
         onFinish: () => { loading.value = false; },
     });
 };
+
+const resetFilter = () => {
+    form.date = '';
+    form.employee = '';
+    applyFilter();
+};
 </script>
 
 <template>
@@ -57,7 +63,7 @@ const applyFilter = () => {
             </section>
 
             <Card>
-                <form class="grid gap-3 md:grid-cols-[1fr_1fr_140px]" @submit.prevent="applyFilter">
+                <form class="grid gap-3 md:grid-cols-[1fr_1fr_140px_120px]" @submit.prevent="applyFilter">
                     <input v-model="form.date" type="date" class="rounded-lg border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white focus:ring-emerald-100">
                     <select v-model="form.employee" class="rounded-lg border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white focus:ring-emerald-100">
                         <option value="">Semua Karyawan</option>
@@ -67,6 +73,9 @@ const applyFilter = () => {
                     </select>
                     <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60" :disabled="loading">
                         {{ loading ? 'Memfilter...' : 'Filter' }}
+                    </button>
+                    <button type="button" class="rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:opacity-60" :disabled="loading" @click="resetFilter">
+                        Reset
                     </button>
                 </form>
             </Card>
@@ -97,6 +106,7 @@ const applyFilter = () => {
                                 <td class="px-4 py-3 text-right text-sm">{{ formatRupiah(recap.remaining_cash_amount) }}</td>
                                 <td class="px-4 py-3 text-right text-sm font-black text-emerald-700">{{ formatRupiah(recap.capital_amount) }}</td>
                                 <td class="px-4 py-3 text-right">
+                                    <Link :href="recap.urls.edit" class="rounded-lg px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50">Edit</Link>
                                     <Link :href="recap.urls.show" class="rounded-lg px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50">Detail</Link>
                                 </td>
                             </tr>
@@ -121,7 +131,10 @@ const applyFilter = () => {
                             <p><span class="block text-slate-400">QRIS</span><b>{{ formatRupiah(recap.total_qris_amount) }}</b></p>
                             <p><span class="block text-slate-400">Sisa</span><b>{{ formatRupiah(recap.remaining_cash_amount) }}</b></p>
                         </div>
-                        <Link :href="recap.urls.show" class="mt-4 block rounded-lg bg-blue-50 px-3 py-2 text-center text-xs font-bold text-blue-700">Detail</Link>
+                        <div class="mt-4 grid grid-cols-2 gap-2">
+                            <Link :href="recap.urls.edit" class="rounded-lg bg-emerald-50 px-3 py-2 text-center text-xs font-bold text-emerald-700">Edit</Link>
+                            <Link :href="recap.urls.show" class="rounded-lg bg-blue-50 px-3 py-2 text-center text-xs font-bold text-blue-700">Detail</Link>
+                        </div>
                     </article>
                     <div v-if="recaps.data.length === 0" class="rounded-lg border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
                         Belum ada rekap harian.

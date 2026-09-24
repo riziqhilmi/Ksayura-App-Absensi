@@ -11,12 +11,32 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Create Owner
-        User::updateOrCreate(['email' => 'owner@kantorsayur.com'], [
+        User::updateOrCreate(['email' => 'admin@kantorsayur.com'], [
             'name' => 'Owner Kantor Sayur',
             'password' => Hash::make('123'),
             'role' => 'owner',
             'phone' => '081234567890',
             'address' => 'Jl. Kebon Sayur No. 123, Jakarta',
+            'hire_date' => now(),
+            'email_verified_at' => now(),
+        ]);
+
+        User::updateOrCreate(['email' => 'septio@gmail.com'], [
+            'name' => 'Owner Kantor Sayur',
+            'password' => Hash::make('12345678'),
+            'role' => 'owner',
+            'phone' => '081234567890',
+            'address' => 'Jl. ..',
+            'hire_date' => now(),
+            'email_verified_at' => now(),
+        ]);
+
+        User::updateOrCreate(['email' => 'ulud@gmail.com'], [
+            'name' => 'Owner Kantor Sayur',
+            'password' => Hash::make('12345678'),
+            'role' => 'owner',
+            'phone' => '081234567890',
+            'address' => 'Jl. ..',
             'hire_date' => now(),
             'email_verified_at' => now(),
         ]);
@@ -52,7 +72,5 @@ class DatabaseSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
-        $this->call(EmployeeSeeder::class);
-        $this->call(ShiftAndRiziqAttendanceSeeder::class);
     }
 }

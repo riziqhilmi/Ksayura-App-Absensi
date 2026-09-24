@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 
@@ -67,30 +70,68 @@ class EmployeeController extends Controller
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        // Create User Account
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => 'employee',
-            'phone' => $request->phone,
-            'address' => $request->address,
-            'hire_date' => $request->hire_date,
-        ]);
+        $validated = $validator->validated();
 
-        // Create Employee Profile
-        Employee::create([
-            'user_id' => $user->id,
-            'employee_code' => 'EMP' . str_pad(Employee::count() + 1, 4, '0', STR_PAD_LEFT),
-            'position' => $request->position,
-            'base_salary' => $request->daily_rate, // Simpan daily_rate sebagai base_salary juga
-            'salary_type' => 'daily', // Default daily
-            'daily_rate' => $request->daily_rate,
-            'hourly_rate' => $request->hourly_rate,
-            'status' => 'active',
-        ]);
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            try {
+                DB::transaction(function () use ($validated) {
+                    $user = User::create([
+                        'name' => $validated['name'],
+                        'email' => $validated['email'],
+                        'password' => Hash::make($validated['password']),
+                        'role' => 'employee',
+                        'phone' => $validated['phone'] ?? null,
+                        'address' => $validated['address'] ?? null,
+                        'hire_date' => $validated['hire_date'],
+                    ]);
 
-        return redirect()->route('owner.employees.index')->with('success', 'Karyawan berhasil ditambahkan! Akun login telah dibuat.');
+                    $employeeCode = $this->generateNextEmployeeCode();
+
+                    if (Employee::where('employee_code', $employeeCode)->exists()) {
+                        throw ValidationException::withMessages([
+                            'employee_code' => 'Kode karyawan sudah digunakan. Silakan coba simpan ulang.',
+                        ]);
+                    }
+
+                    Employee::create([
+                        'user_id' => $user->id,
+                        'employee_code' => $employeeCode,
+                        'position' => $validated['position'] ?? null,
+                        'base_salary' => $validated['daily_rate'], // Simpan daily_rate sebagai base_salary juga
+                        'salary_type' => 'daily', // Default daily
+                        'daily_rate' => $validated['daily_rate'],
+                        'hourly_rate' => $validated['hourly_rate'] ?? null,
+                        'status' => 'active',
+                    ]);
+                });
+
+                return redirect()->route('owner.employees.index')->with('success', 'Karyawan berhasil ditambahkan! Akun login telah dibuat.');
+            } catch (QueryException $exception) {
+                if ($this->isDuplicateEmployeeCodeException($exception) && $attempt < 5) {
+                    continue;
+                }
+
+                if ($this->isDuplicateEmployeeCodeException($exception)) {
+                    return redirect()->back()
+                        ->withErrors(['employee_code' => 'Kode karyawan terbaru sudah dipakai oleh proses lain. Silakan coba simpan ulang.'])
+                        ->withInput();
+                }
+
+                if ($this->isDuplicateUserEmailException($exception)) {
+                    return redirect()->back()
+                        ->withErrors(['email' => 'Email sudah digunakan.'])
+                        ->withInput();
+                }
+
+                throw $exception;
+            } catch (ValidationException $exception) {
+                return redirect()->back()->withErrors($exception->errors())->withInput();
+            }
+        }
+
+        return redirect()->back()
+            ->withErrors(['employee_code' => 'Kode karyawan belum bisa dibuat. Silakan coba lagi.'])
+            ->withInput();
     }
 
     public function show(Employee $employee)
@@ -234,5 +275,54 @@ class EmployeeController extends Controller
                 'reset_password' => route('owner.employees.reset-password', $employee),
             ],
         ];
+    }
+
+    private function generateNextEmployeeCode(): string
+    {
+        $maxNumber = Employee::query()
+            ->where('employee_code', 'like', 'EMP%')
+            ->lockForUpdate()
+            ->pluck('employee_code')
+            ->reduce(function (int $max, string $code): int {
+                if (preg_match('/^EMP(\d+)$/', $code, $matches) !== 1) {
+                    return $max;
+                }
+
+                return max($max, (int) $matches[1]);
+            }, 0);
+
+        $nextNumber = $maxNumber + 1;
+
+        do {
+            $employeeCode = 'EMP' . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+            $nextNumber++;
+        } while (Employee::where('employee_code', $employeeCode)->exists());
+
+        return $employeeCode;
+    }
+
+    private function isDuplicateEmployeeCodeException(QueryException $exception): bool
+    {
+        if (($exception->errorInfo[0] ?? null) !== '23000') {
+            return false;
+        }
+
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'employees_employee_code_unique')
+            || str_contains($message, 'employee_code');
+    }
+
+    private function isDuplicateUserEmailException(QueryException $exception): bool
+    {
+        if (($exception->errorInfo[0] ?? null) !== '23000') {
+            return false;
+        }
+
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'users_email_unique')
+            || str_contains($message, 'users.email')
+            || str_contains($message, "'email'");
     }
 }

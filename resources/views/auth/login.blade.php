@@ -94,17 +94,11 @@
                                 <x-input-error :messages="$errors->get('password')" class="mt-2" />
                             </div>
 
-                            <div class="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                            <div class="flex text-sm">
                                 <label for="remember_me" class="inline-flex items-center">
                                     <input id="remember_me" type="checkbox" class="rounded border-slate-300 text-emerald-600 shadow-sm focus:ring-emerald-500" name="remember">
                                     <span class="ml-2 text-slate-600">{{ __('Ingat Saya') }}</span>
                                 </label>
-
-                                @if (Route::has('password.request'))
-                                    <a class="font-semibold text-emerald-700 transition hover:text-emerald-900 hover:underline" href="{{ route('password.request') }}">
-                                        {{ __('Lupa Kata Sandi?') }}
-                                    </a>
-                                @endif
                             </div>
 
                             <button type="submit" class="flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-200 transition duration-200 hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-200">

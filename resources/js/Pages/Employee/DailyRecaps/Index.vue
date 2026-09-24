@@ -268,7 +268,7 @@ const submit = () => {
                         >
                             <div class="min-w-0">
                                 <p class="truncate text-sm font-bold text-slate-800">{{ expense.name || `Item ${index + 1}` }}</p>
-                                <p class="text-xs text-slate-400">{{ expense.session_opened_by ? `Sesi ${expense.session_id} oleh ${expense.session_opened_by}` : 'Pengeluaran bersama' }}</p>
+                                <p class="text-xs text-slate-400">{{ expense.created_by_name || expense.session_opened_by ? `oleh ${expense.created_by_name || expense.session_opened_by}` : 'Pengeluaran bersama' }}</p>
                             </div>
                             <p class="shrink-0 text-sm font-black text-slate-900">{{ formatRupiah(expense.amount) }}</p>
                         </div>

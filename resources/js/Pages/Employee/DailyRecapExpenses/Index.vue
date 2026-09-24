@@ -225,6 +225,7 @@ const removeExpense = (expense) => {
                                     <div class="min-w-0">
                                         <p class="truncate font-black text-slate-900">{{ expense.name }}</p>
                                         <p class="mt-1 text-xs text-slate-500">{{ expense.created_at }}</p>
+                                        <p v-if="expense.created_by_name" class="mt-1 text-xs text-slate-500">oleh {{ expense.created_by_name }}</p>
                                         <p class="mt-2 text-lg font-black text-emerald-700">{{ formatRupiah(expense.amount) }}</p>
                                     </div>
                                     <button type="button" class="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-600 disabled:opacity-50" :disabled="!canEdit" @click="removeExpense(expense)">

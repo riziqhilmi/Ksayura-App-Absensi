@@ -44,7 +44,7 @@ const applyFilter = () => {
                 <div>
                     <p class="text-sm font-semibold text-emerald-700">Karyawan</p>
                     <h1 class="text-2xl font-black text-slate-950">Rekap Harian</h1>
-                    <p class="mt-1 text-sm text-slate-500">Riwayat rekap semua karyawan, lengkap dengan siapa yang membuka dan menutup rekap.</p>
+                    <p class="mt-1 text-sm text-slate-500">Riwayat rekap bersama, lengkap dengan siapa yang membuka dan menutup rekap.</p>
                 </div>
                 <Link :href="links.create" class="inline-flex justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">
                     Tambah Rekap
@@ -66,7 +66,7 @@ const applyFilter = () => {
                         <thead class="bg-slate-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Tanggal</th>
-                                <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Oleh</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Petugas</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">Status</th>
                                 <th class="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">Pengeluaran</th>
                                 <th class="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">QRIS</th>
@@ -79,15 +79,18 @@ const applyFilter = () => {
                             <tr v-for="recap in recaps.data" :key="recap.id" class="hover:bg-slate-50">
                                 <td class="px-4 py-3 text-sm font-semibold">{{ recap.recap_date_label }}</td>
                                 <td class="px-4 py-3 text-sm">
-                                    <b class="text-slate-900">{{ recap.recapped_by?.name || recap.employee?.name || '-' }}</b>
-                                    <span class="block text-xs text-slate-500">{{ recap.recapped_by?.employee_code || recap.employee?.employee_code || '-' }}</span>
+                                    <b class="text-slate-900">Dibuka: {{ recap.opened_by?.name || '-' }}</b>
+                                    <span class="block text-xs text-slate-500">{{ recap.opened_by?.employee_code || '-' }}</span>
+                                    <span class="mt-1 block text-xs text-slate-500">
+                                        Ditutup: {{ recap.closed_by?.name || '-' }}
+                                    </span>
                                 </td>
                                 <td class="px-4 py-3 text-sm">
                                     <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-bold ring-1" :class="recap.is_open ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-200'">
                                         {{ recap.is_open ? 'Masih aktif' : 'Ditutup' }}
                                     </span>
                                     <span class="mt-1 block text-xs text-slate-500">
-                                        Dibuka {{ recap.opened_by?.name || '-' }}<template v-if="recap.closed_by">, ditutup {{ recap.closed_by.name }}</template>
+                                        <span v-if="recap.opened_at">Dibuka {{ recap.opened_at }}</span><template v-if="recap.closed_at">, ditutup {{ recap.closed_at }}</template>
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-right text-sm">{{ formatRupiah(recap.total_expense_amount) }}</td>
@@ -112,7 +115,8 @@ const applyFilter = () => {
                             <div>
                                 <p class="font-black text-slate-900">{{ recap.recap_date_long }}</p>
                                 <p class="mt-1 text-xs text-slate-500">
-                                    Direkap {{ recap.recapped_by?.name || recap.employee?.name || '-' }}
+                                    Dibuka oleh {{ recap.opened_by?.name || '-' }}
+                                    <template v-if="recap.closed_by">, ditutup oleh {{ recap.closed_by.name }}</template>
                                 </p>
                                 <p class="mt-1 text-xs text-slate-500">{{ recap.expenses_count }} item pengeluaran - {{ recap.qris_transactions_count }} QRIS</p>
                             </div>

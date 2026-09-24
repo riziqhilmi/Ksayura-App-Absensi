@@ -131,12 +131,12 @@ class DailyRecapController extends Controller
 
     public function ownerIndex(Request $request)
     {
+        $this->ensureOwner();
+
         $query = DailyRecap::with(['employee.user'])->withCount(['expenses', 'qrisTransactions']);
 
         if ($request->filled('date')) {
             $query->whereDate('recap_date', $request->date);
-        } else {
-            $query->whereDate('recap_date', today());
         }
 
         if ($request->filled('employee')) {
@@ -150,7 +150,7 @@ class DailyRecapController extends Controller
             'recaps' => $recaps->through(fn (DailyRecap $recap) => $this->recapListPayload($recap, true)),
             'employees' => $employees->map(fn (Employee $employee) => $this->employeePayload($employee))->values(),
             'filters' => [
-                'date' => $request->input('date', today()->toDateString()),
+                'date' => $request->input('date', ''),
                 'employee' => $request->input('employee', ''),
             ],
             'stats' => [
@@ -167,6 +167,8 @@ class DailyRecapController extends Controller
 
     public function ownerShow(DailyRecap $dailyRecap)
     {
+        $this->ensureOwner();
+
         $dailyRecap->load(['employee.user', 'qrisTransactions']);
 
         return Inertia::render('Owner/DailyRecaps/Show', [
@@ -175,8 +177,89 @@ class DailyRecapController extends Controller
                 'index' => route('owner.daily-recaps.index', [
                     'date' => $dailyRecap->recap_date->toDateString(),
                 ]),
+                'edit' => route('owner.daily-recaps.edit', $dailyRecap),
+                'destroy' => route('owner.daily-recaps.destroy', $dailyRecap),
             ],
         ]);
+    }
+
+    public function ownerEdit(DailyRecap $dailyRecap)
+    {
+        $this->ensureOwner();
+
+        $dailyRecap->load(['employee.user', 'qrisTransactions']);
+
+        return Inertia::render('Owner/DailyRecaps/Edit', [
+            'recap' => $this->recapPayload($dailyRecap, 'owner.qris-transactions.evidence', true),
+            'links' => [
+                'index' => route('owner.daily-recaps.index', [
+                    'date' => $dailyRecap->recap_date->toDateString(),
+                ]),
+                'show' => route('owner.daily-recaps.show', $dailyRecap),
+                'update' => route('owner.daily-recaps.update', $dailyRecap),
+            ],
+        ]);
+    }
+
+    public function ownerUpdate(Request $request, DailyRecap $dailyRecap)
+    {
+        $this->ensureOwner();
+
+        $validated = $request->validate([
+            'capital_amount' => ['required', 'integer', 'min:0', 'max:999999999999'],
+            'remaining_cash_amount' => ['required', 'integer', 'min:0', 'max:999999999999'],
+        ]);
+
+        DB::transaction(function () use ($dailyRecap, $validated) {
+            $totalExpenses = (int) $this->expensesForRecap($dailyRecap)->sum('amount');
+            $totalQris = (int) $dailyRecap->qrisTransactions()->sum('amount');
+
+            $dailyRecap->forceFill([
+                'total_expense_amount' => $totalExpenses,
+                'capital_amount' => (int) $validated['capital_amount'],
+                'remaining_cash_amount' => (int) $validated['remaining_cash_amount'],
+                'total_qris_amount' => $totalQris,
+            ])->save();
+        });
+
+        return redirect()
+            ->route('owner.daily-recaps.show', $dailyRecap)
+            ->with('success', 'Rekap harian berhasil diperbarui.');
+    }
+
+    public function ownerDestroy(Request $request, DailyRecap $dailyRecap)
+    {
+        $this->ensureOwner();
+
+        $validated = $request->validate([
+            'confirmation_text' => ['required', 'string', 'in:HAPUS REKAP'],
+            'recap_date' => ['required', 'date'],
+            'employee_id' => ['required', 'integer'],
+            'password' => ['required', 'current_password'],
+        ]);
+
+        if (Carbon::parse($validated['recap_date'])->toDateString() !== $dailyRecap->recap_date->toDateString()
+            || (int) $validated['employee_id'] !== (int) $dailyRecap->employee_id) {
+            return back()->withErrors([
+                'confirmation_text' => 'Data konfirmasi tidak cocok dengan rekap yang akan dihapus.',
+            ]);
+        }
+
+        $indexUrl = route('owner.daily-recaps.index', [
+            'date' => $dailyRecap->recap_date->toDateString(),
+        ]);
+
+        DB::transaction(function () use ($dailyRecap) {
+            $dailyRecap->loadMissing('qrisTransactions');
+
+            foreach ($dailyRecap->qrisTransactions as $transaction) {
+                $this->deleteEvidenceFile($transaction);
+            }
+
+            $dailyRecap->delete();
+        });
+
+        return redirect($indexUrl)->with('success', 'Rekap harian berhasil dihapus.');
     }
 
     public function store(Request $request)
@@ -260,6 +343,11 @@ class DailyRecapController extends Controller
     private function currentEmployee(): ?Employee
     {
         return Employee::with('user')->where('user_id', auth()->id())->first();
+    }
+
+    private function ensureOwner(): void
+    {
+        abort_unless(auth()->user()?->isOwner(), 403);
     }
 
     private function syncExpenses(DailyRecap $recap, array $expenses): void
@@ -443,9 +531,12 @@ class DailyRecapController extends Controller
                 'show' => $ownerUrls
                     ? route('owner.daily-recaps.show', $recap)
                     : route('employee.daily-recaps.show', $recap),
-                'edit' => $ownerUrls || !$this->canEditRecap($recap)
-                    ? null
-                    : route('employee.daily-recaps.edit', $recap),
+                'edit' => $ownerUrls
+                    ? route('owner.daily-recaps.edit', $recap)
+                    : ($this->canEditRecap($recap)
+                        ? route('employee.daily-recaps.edit', $recap)
+                        : null),
+                'destroy' => $ownerUrls ? route('owner.daily-recaps.destroy', $recap) : null,
             ],
         ];
     }
@@ -519,7 +610,7 @@ class DailyRecapController extends Controller
 
     private function expensesForRecap(DailyRecap $recap)
     {
-        return DailyRecapExpense::with(['expenseSession.openedBy.user', 'dailyRecap'])
+        return DailyRecapExpense::with(['createdBy.user', 'expenseSession.openedBy.user', 'dailyRecap'])
             ->where(function ($query) use ($recap) {
                 $query->whereHas('expenseSession', function ($sessionQuery) use ($recap) {
                     $sessionQuery->where('daily_recap_id', $recap->id);
@@ -536,7 +627,7 @@ class DailyRecapController extends Controller
 
     private function sharedExpensesForDate(string $date)
     {
-        return DailyRecapExpense::with(['expenseSession.openedBy.user', 'dailyRecap'])
+        return DailyRecapExpense::with(['createdBy.user', 'expenseSession.openedBy.user', 'dailyRecap'])
             ->where(function ($query) use ($date) {
                 $query->whereHas('expenseSession', function ($sessionQuery) use ($date) {
                     $sessionQuery->whereDate('recap_date', $date);
@@ -560,6 +651,8 @@ class DailyRecapController extends Controller
             'name' => $expense->name,
             'amount' => (int) $expense->amount,
             'session_id' => $expense->daily_recap_expense_session_id,
+            'created_by' => $expense->createdBy ? $this->employeePayload($expense->createdBy) : null,
+            'created_by_name' => $expense->createdBy?->user?->name,
             'session_opened_by' => $expense->expenseSession?->openedBy?->user?->name,
         ])->values()->all();
     }

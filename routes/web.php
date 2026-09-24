@@ -49,7 +49,7 @@ Route::middleware('auth')->group(function () {
 | Owner Routes (Middleware: auth, verified)
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth', 'verified'])->prefix('owner')->name('owner.')->group(function () {
+Route::middleware(['auth', 'verified', 'role:owner'])->prefix('owner')->name('owner.')->group(function () {
     
     // Dashboard
     Route::get('/dashboard', [OwnerDashboardController::class, 'index'])->name('dashboard');
@@ -69,6 +69,9 @@ Route::middleware(['auth', 'verified'])->prefix('owner')->name('owner.')->group(
     // Daily Recap Management
     Route::get('/daily-recaps', [DailyRecapController::class, 'ownerIndex'])->name('daily-recaps.index');
     Route::get('/daily-recaps/qris/{transaction}/evidence', [DailyRecapController::class, 'showQrisEvidence'])->name('daily-recaps.qris-evidence');
+    Route::get('/daily-recaps/{dailyRecap}/edit', [DailyRecapController::class, 'ownerEdit'])->name('daily-recaps.edit');
+    Route::put('/daily-recaps/{dailyRecap}', [DailyRecapController::class, 'ownerUpdate'])->name('daily-recaps.update');
+    Route::delete('/daily-recaps/{dailyRecap}', [DailyRecapController::class, 'ownerDestroy'])->name('daily-recaps.destroy');
     Route::get('/daily-recaps/{dailyRecap}', [DailyRecapController::class, 'ownerShow'])->name('daily-recaps.show');
 
     // QRIS Management
@@ -121,7 +124,7 @@ Route::resource('employee-holidays', EmployeeHolidayController::class);
 | Employee Routes (Middleware: auth, verified)
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth', 'verified'])->prefix('employee')->name('employee.')->group(function () {
+Route::middleware(['auth', 'verified', 'role:employee'])->prefix('employee')->name('employee.')->group(function () {
     
     // Dashboard
     Route::get('/dashboard', [EmployeeDashboardController::class, 'index'])->name('dashboard');
@@ -137,6 +140,7 @@ Route::middleware(['auth', 'verified'])->prefix('employee')->name('employee.')->
     Route::post('/daily-recap-expenses/open', [DailyRecapExpenseController::class, 'open'])->name('daily-recap-expenses.open');
     Route::post('/daily-recap-expenses/close', [DailyRecapExpenseController::class, 'close'])->name('daily-recap-expenses.close');
     Route::post('/daily-recap-expenses', [DailyRecapExpenseController::class, 'store'])->name('daily-recap-expenses.store');
+    Route::put('/daily-recap-expenses/{expense}', [DailyRecapExpenseController::class, 'update'])->name('daily-recap-expenses.update');
     Route::delete('/daily-recap-expenses/{expense}', [DailyRecapExpenseController::class, 'destroy'])->name('daily-recap-expenses.destroy');
     Route::get('/daily-recaps', [DailyRecapController::class, 'myIndex'])->name('daily-recaps.index');
     Route::get('/daily-recaps/create', [DailyRecapController::class, 'create'])->name('daily-recaps.create');

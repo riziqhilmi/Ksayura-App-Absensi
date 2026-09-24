@@ -12,6 +12,7 @@ class DailyRecapExpense extends Model
     protected $fillable = [
         'daily_recap_id',
         'daily_recap_expense_session_id',
+        'created_by_employee_id',
         'name',
         'expense_time',
         'amount',
@@ -31,5 +32,10 @@ class DailyRecapExpense extends Model
     public function expenseSession()
     {
         return $this->belongsTo(DailyRecapExpenseSession::class, 'daily_recap_expense_session_id');
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(Employee::class, 'created_by_employee_id');
     }
 }
